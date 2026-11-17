@@ -5,6 +5,12 @@ Battery levels of your wireless mouse, headset, keyboard and controller, right o
 
 ![Wireless Battery on the taskbar](docs/screenshot.png)
 
+[![Son Sürüm / Latest Release](https://img.shields.io/github/v/release/emincodesM/Wireless-Device-Battery-Monitor-TURKCE-BYE-EminCodes?label=Son%20S%C3%BCr%C3%BCm%20%28Setup%29&style=for-the-badge&color=success)](https://github.com/emincodesM/Wireless-Device-Battery-Monitor-TURKCE-BYE-EminCodes/releases/latest)
+[![Build Status](https://img.shields.io/github/actions/workflow/status/emincodesM/Wireless-Device-Battery-Monitor-TURKCE-BYE-EminCodes/build.yml?branch=main&style=for-the-badge&label=Build)](https://github.com/emincodesM/Wireless-Device-Battery-Monitor-TURKCE-BYE-EminCodes/actions)
+
+> **Hemen Kurmak İster misiniz?**  
+> Sağ taraftaki **Releases** bölümünden veya **[buraya tıklayarak son sürümden](https://github.com/emincodesM/Wireless-Device-Battery-Monitor-TURKCE-BYE-EminCodes/releases/latest)** **`WirelessBattery-Setup-1.0.0.exe`** dosyasını indirip tek tıkla kurabilirsiniz.
+
 ---
 
 ### 🌟 Enhanced Edition Highlights (Özel Sürüm Yenilikleri)

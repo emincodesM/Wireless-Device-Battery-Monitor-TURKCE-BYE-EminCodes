@@ -1,19 +1,27 @@
 # Builds dist\WirelessBattery-Setup-<version>.exe and dist\WirelessBattery-<version>-portable.zip.
-param([string]$Version = "1.0.0")
+param(
+    [string]$Version = "1.0.0",
+    [switch]$UseInno
+)
 $ErrorActionPreference = "Stop"
 $root = Split-Path $PSScriptRoot -Parent
 Set-Location $root
 
-if (-not (Test-Path (Join-Path $root "WirelessBattery.exe"))) { throw "Build WirelessBattery.exe first (make or build.bat)." }
+if (-not (Test-Path (Join-Path $root "WirelessBattery.exe"))) {
+    throw "Build WirelessBattery.exe first (make or build.bat)."
+}
 
 New-Item -ItemType Directory -Force (Join-Path $root "dist") | Out-Null
 New-Item -ItemType Directory -Force (Join-Path $root "build") | Out-Null
 
-$iscc = foreach ($v in 7, 6) {
-    foreach ($base in ${env:ProgramFiles(x86)}, $env:ProgramFiles, "$env:LOCALAPPDATA\Programs") { "$base\Inno Setup $v\ISCC.exe" }
+$iscc = $null
+if ($UseInno) {
+    $iscc = foreach ($v in 7, 6) {
+        foreach ($base in ${env:ProgramFiles(x86)}, $env:ProgramFiles, "$env:LOCALAPPDATA\Programs") { "$base\Inno Setup $v\ISCC.exe" }
+    }
+    $iscc = $iscc | Where-Object { Test-Path $_ } | Select-Object -First 1
+    if (-not $iscc) { $iscc = (Get-Command ISCC.exe -ErrorAction SilentlyContinue).Source }
 }
-$iscc = $iscc | Where-Object { Test-Path $_ } | Select-Object -First 1
-if (-not $iscc) { $iscc = (Get-Command ISCC.exe -ErrorAction SilentlyContinue).Source }
 
 if ($iscc) {
     & $iscc "/DAppVersion=$Version" (Join-Path $PSScriptRoot "WirelessBattery.iss")
