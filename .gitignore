@@ -1,0 +1,28 @@
+# Build outputs
+build/
+dist/
+*.exe
+*.o
+*.a
+*.obj
+*.pdb
+*.zip
+
+# Visual Studio / VS Code
+.vscode/
+.vs/
+*.user
+
+# CLion / JetBrains
+.idea/
+cmake-build-*/
+
+# OS generated
+Thumbs.db
+Desktop.ini
+.DS_Store
+
+# Temporary / backup files
+*.bak
+*.tmp
+yedekler/
