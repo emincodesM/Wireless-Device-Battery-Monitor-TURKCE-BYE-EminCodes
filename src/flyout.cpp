@@ -270,7 +270,7 @@ void StrokeRound(GpGraphics* g, float x, float y, float w, float h, float r, flo
 
 // ---- Layout metrics ----------------------------------------------------------------------------
 
-int PanelWidth()   { return Px(370); }
+int PanelWidth()   { return Px(392); }
 int HeaderHeight() { return Px(52); }
 int CardHeight()   { return Px(94); }
 int CardGap()      { return Px(8); }
@@ -533,10 +533,11 @@ void PaintPanel(HWND wnd, HDC targetDc) {
                         (float)Px(10), focused ? 2.0f : 1.0f,
                         focused ? MakeArgb(230, 0, 120, 212) : cardBorder);
 
-            BrandColor bc = AccentColor(e.accent != Accent::None ? e.accent : BrandOf(d), g_light);
-            ARGB accentArgb = (e.accent != Accent::None || BrandOf(d) != Accent::None)
-                ? MakeArgb(235, bc.r, bc.g, bc.b)
-                : MakeArgb(200, 88, 166, 255);
+            Accent resolvedAcc = (e.accent != Accent::None) ? e.accent : BrandOf(d);
+            BrandColor bc = (resolvedAcc != Accent::None)
+                ? AccentColor(resolvedAcc, g_light)
+                : (g_light ? BrandColor{ 0, 102, 204 } : BrandColor{ 88, 166, 255 });
+            ARGB accentArgb = MakeArgb(235, bc.r, bc.g, bc.b);
             FillRound(gg, (float)(c.left + Px(4)), (float)(c.top + Px(14)), (float)Px(4), (float)(CardHeight() - Px(28)), (float)Px(2), accentArgb);
 
             // Device Icon Circle
@@ -559,13 +560,13 @@ void PaintPanel(HWND wnd, HDC targetDc) {
             }
             SelectObject(dc, g_fonts.btn);
             SetTextColor(dc, e.hiddenOnTaskbar ? RGB(235, 87, 87) : txtSub);
-            wchar_t eyeGlyph[2] = { (wchar_t)(e.hiddenOnTaskbar ? 0xED1A : 0xE7B3), 0 };
+            wchar_t eyeGlyph[2] = { (wchar_t)(e.hiddenOnTaskbar ? 0xED1A : 0xE890), 0 };
             DrawTextW(dc, eyeGlyph, 1, &rEye, DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_NOPREFIX);
 
             // Device Name
             SelectObject(dc, g_fonts.name);
             SetTextColor(dc, txtMain);
-            RECT rName{ icX + icS + Px(12), c.top + Px(10), c.right - Px(95), c.top + Px(30) };
+            RECT rName{ icX + icS + Px(12), c.top + Px(10), c.right - Px(36), c.top + Px(30) };
             std::wstring dispName = TranslateDeviceName(d.name);
             DrawTextW(dc, dispName.c_str(), (int)dispName.size(), &rName, DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS | DT_NOPREFIX);
 
@@ -762,6 +763,9 @@ LRESULT CALLBACK WndProc(HWND h, UINT m, WPARAM wp, LPARAM lp) {
             EndPaint(h, &ps);
             return 0;
         }
+        case WM_PRINTCLIENT:
+            PaintPanel(h, (HDC)wp);
+            return 0;
         case WM_MOUSEMOVE: {
             RECT rc;
             GetClientRect(h, &rc);

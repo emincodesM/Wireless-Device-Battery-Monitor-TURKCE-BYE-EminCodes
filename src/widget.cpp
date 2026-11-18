@@ -841,6 +841,13 @@ LRESULT CALLBACK WndProc(HWND h, UINT m, WPARAM wp, LPARAM lp) {
             EndPaint(h, &ps);
             return 0;
         }
+        case WM_PRINTCLIENT: {
+            bool child = false;
+            for (const auto& b : g_bars)
+                if (b.wnd == h) { child = b.child; break; }
+            Paint(h, (HDC)wp, child);
+            return 0;
+        }
         case WM_LBUTTONUP:
             if (g_owner && g_clickMsg) PostMessageW(g_owner, g_clickMsg, 0, 0); // 0 = Toggle Flyout
             return 0;

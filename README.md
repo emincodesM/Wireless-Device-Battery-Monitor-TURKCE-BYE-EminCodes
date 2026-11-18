@@ -16,7 +16,11 @@
 
 <br>
 
-<img src="docs/screenshot.png" width="680" alt="Wireless Device Battery Monitor Screenshot">
+<p align="center">
+  <img src="docs/flyout.png" width="380" alt="Windows 11 Flyout Panel">
+  &nbsp;&nbsp;
+  <img src="docs/settings.png" width="380" alt="In-Flyout Settings Panel">
+</p>
 
 </div>
 

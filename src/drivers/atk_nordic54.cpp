@@ -8,12 +8,16 @@
 namespace {
 
 bool IsAtkMouseVid(USHORT vid, USHORT pid) {
+    if (vid == 0x373B) {
+        // Skip ATK N9 Pro / N9 Ultra headsets (handled by PollAtkSerial).
+        if (pid == 0x11CA || pid == 0x11CB || pid == 0x1203 || pid == 0x1204) return false;
+        return true;
+    }
     if (vid == 0x373E) {
-        // Skip ATK Neptune N9 headsets (handled by PollAtkSerial).
         if (pid >= 0x1000 && pid <= 0x1030) return false;
         return true;
     }
-    return vid == 0x373B || vid == 0x3710 || vid == 0x3554;
+    return vid == 0x3710 || vid == 0x3554;
 }
 
 bool TryProbeCollection(const HidColl& c, AtkNordic54::BatteryReply& out) {

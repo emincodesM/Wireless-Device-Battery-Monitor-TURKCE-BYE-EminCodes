@@ -15,6 +15,7 @@ const BrandStyle kBrands[] = {
     { Accent::Corsair,      L"Corsair",      { 245, 228,  26 }, { 150, 122,   0 } },  // yellow #F5E41A
     { Accent::HyperX,       L"HyperX",       { 232,  35,  63 }, { 200,  16,  46 } },  // #E31837
     { Accent::Rog,          L"ROG",          { 255,  46,  77 }, { 208,   0,  42 } },  // ROG red #FF0029
+    { Accent::Atk,          L"ATK",          { 255, 115,  29 }, { 204,  82,   0 } },  // ATK blazing orange #FF731D
     { Accent::Zowie,        L"ZOWIE",        { 240,  60,  50 }, { 192,  32,  26 } },  // #E2231A
     { Accent::PlayStation,  L"PlayStation",  {  31, 139, 255 }, {   0,  98, 196 } },  // #0070D1
     { Accent::Xbox,         L"Xbox",         {  34, 168,  34 }, {  16, 124,  16 } },  // #107C10
@@ -51,7 +52,8 @@ const KeyRule kKeys[] = {
     { L"steelseries:", Accent::SteelSeries },
     { L"corsair:", Accent::Corsair },
     { L"hyperx:", Accent::HyperX },
-    { L"rog:", Accent::Rog },
+    { L"rog:", Accent::Rog }, { L"rog-omni:", Accent::Rog },
+    { L"atk-serial:", Accent::Atk }, { L"atk-n54:", Accent::Atk }, { L"atk-kb:", Accent::Atk }, { L"atk:", Accent::Atk },
     { L"zowie:", Accent::Zowie },
     { L"ps:", Accent::PlayStation }, { L"inzone:", Accent::PlayStation },
     { L"xbox:", Accent::Xbox }, { L"xinput:", Accent::Xbox },
@@ -97,6 +99,7 @@ const NameRule kNames[] = {
     { L"corsair", How::Contains, Accent::Corsair },
     { L"hyperx", How::Contains, Accent::HyperX }, { L"pulsefire", How::Word, Accent::HyperX },
     { L"rog", How::Word, Accent::Rog },
+    { L"atk", How::Word, Accent::Atk }, { L"vxe", How::Word, Accent::Atk }, { L"vgn", How::Word, Accent::Atk },
     { L"zowie", How::Contains, Accent::Zowie },
     { L"dualsense", How::Contains, Accent::PlayStation }, { L"dualshock", How::Contains, Accent::PlayStation },
     { L"playstation", How::Contains, Accent::PlayStation }, { L"inzone", How::Word, Accent::PlayStation },
