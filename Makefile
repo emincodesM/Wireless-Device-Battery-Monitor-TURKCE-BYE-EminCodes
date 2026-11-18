@@ -1,33 +1,51 @@
-# Builds WirelessBattery.exe with MinGW-w64 (MSYS2 MINGW64/UCRT64 shell, or any mingw g++ on PATH).
-CXX      ?= g++
-WINDRES  ?= windres
-CXXFLAGS ?= -std=c++17 -Os -Wall -Wno-missing-field-initializers -ffunction-sections -fdata-sections \
-            -D_WIN32_WINNT=0x0A00 -DWINVER=0x0A00
-LDFLAGS  ?= -municode -mwindows -static -s -Wl,--gc-sections
-LIBS     := -lhid -lsetupapi -lcfgmgr32 -lole32 -lcomctl32 -lgdi32 -lruntimeobject
+CXX      := g++
+WINDRES  := windres
+CXXFLAGS := -std=c++17 -O2 -Wall -Wextra -Wno-missing-field-initializers -municode -DUNICODE -D_UNICODE -DWINVER=0x0A00 -D_WIN32_WINNT=0x0A00 \
+            -finput-charset=UTF-8 -fexec-charset=UTF-8 -ffunction-sections -fdata-sections
+LDFLAGS  := -mwindows -municode -s -static-libgcc -static-libstdc++ -Wl,--gc-sections
+LIBS     := -lsetupapi -lhid -lcfgmgr32 -lole32 -loleaut32 -luuid -lcomctl32 -luxtheme -ldwmapi -lruntimeobject -lws2_32
 
-SRC := $(wildcard src/*.cpp) $(wildcard src/drivers/*.cpp)
-OBJ := $(patsubst src/%.cpp,build/%.o,$(SRC)) build/app_res.o
+BUILD := build
+SRCS  := $(wildcard src/*.cpp) $(wildcard src/drivers/*.cpp)
+OBJS  := $(patsubst src/%.cpp,$(BUILD)/%.o,$(SRCS)) $(BUILD)/app_res.o
 
-WirelessBattery.exe: $(OBJ)
-	$(CXX) $(LDFLAGS) $^ -o $@ $(LIBS)
+OUT := WirelessBattery.exe
 
-build/%.o: src/%.cpp $(wildcard src/*.h src/drivers/*.h)
+all: $(OUT)
+
+$(OUT): $(OBJS)
+	$(CXX) $(OBJS) -o $@ $(LDFLAGS) $(LIBS)
+
+$(BUILD)/%.o: src/%.cpp
 	@mkdir -p $(dir $@)
-	$(CXX) $(CXXFLAGS) -municode -c $< -o $@
+	$(CXX) $(CXXFLAGS) -c $< -o $@
 
-build/app_res.o: res/app.rc res/app.manifest res/app.ico
-	@mkdir -p build
-	$(WINDRES) -i $< -o $@ --include-dir res
+$(BUILD)/app_res.o: res/app.rc res/app.manifest res/app.ico res/version.h $(wildcard lang/*.txt)
+	@mkdir -p $(BUILD)
+	$(WINDRES) -i res/app.rc -o $@
+
+TEST_CXXFLAGS := -std=c++17 -O2 -Wall -Wextra -Wno-missing-field-initializers -DUNICODE -D_UNICODE -DWINVER=0x0A00 -D_WIN32_WINNT=0x0A00 \
+                 -finput-charset=UTF-8 -fexec-charset=UTF-8 -Isrc
+
+$(BUILD)/test_rapoo_protocol.exe: tests/test_rapoo_protocol.cpp src/drivers/rapoo_protocol.h \
+                                  src/drivers/atk_serial_protocol.h src/drivers/hyperx_protocol.h \
+                                  src/drivers/atk_nordic54_protocol.h src/drivers/galaxy_buds_protocol.h \
+                                  src/drivers/logitech_g435_0adf.h src/drivers/ardor_fury_v2_protocol.h \
+                                  src/drivers/xenta_protocol.h src/drivers/xenta_protocol.cpp
+	@mkdir -p $(BUILD)
+	$(CXX) $(TEST_CXXFLAGS) tests/test_rapoo_protocol.cpp src/drivers/xenta_protocol.cpp -o $@ -static-libgcc -static-libstdc++
+
+$(BUILD)/test_rapoo_driver.exe: tests/test_rapoo_driver.cpp src/drivers/rapoo.cpp src/drivers/rapoo_protocol.h \
+                                src/drivers/drivers.h src/devices.h src/devices.cpp src/hid.h \
+                                src/battery_model.h src/battery_model.cpp src/i18n.h src/i18n.cpp
+	@mkdir -p $(BUILD)
+	$(CXX) $(TEST_CXXFLAGS) tests/test_rapoo_driver.cpp src/drivers/rapoo.cpp src/battery_model.cpp src/i18n.cpp -o $@ -static-libgcc -static-libstdc++
+
+test: $(BUILD)/test_rapoo_protocol.exe $(BUILD)/test_rapoo_driver.exe
+	$(BUILD)/test_rapoo_protocol.exe
+	$(BUILD)/test_rapoo_driver.exe
 
 clean:
-	rm -rf build WirelessBattery.exe
+	rm -rf $(BUILD) $(OUT)
 
-test:
-	@mkdir -p build
-	$(CXX) -std=c++17 -O2 -Wall tests/rapoo_protocol_test.cpp -o build/rapoo_protocol_test.exe
-	./build/rapoo_protocol_test.exe
-	$(CXX) $(CXXFLAGS) tests/rapoo_driver_test.cpp src/drivers/rapoo.cpp -o build/rapoo_driver_test.exe
-	./build/rapoo_driver_test.exe
-
-.PHONY: clean test
+.PHONY: all clean test

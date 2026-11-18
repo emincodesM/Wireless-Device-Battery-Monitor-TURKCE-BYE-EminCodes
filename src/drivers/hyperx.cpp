@@ -1,15 +1,20 @@
-// HyperX wireless headsets (HP VID 03F0, older Kingston VID 0951).
-// Protocols: Cloud III Wireless verified on hardware (03F0:0C9D) and github.com/Medprj/HyperXWM;
+// HyperX wireless headsets and Pulsefire Haste 2 mice (HP VID 03F0, older Kingston VID 0951).
+// Protocols: Pulsefire Haste 2 Core Wireless verified on hardware (03F0:0AB5), see HasteWireless;
+// Cloud III Wireless verified on hardware (03F0:0C9D) and github.com/Medprj/HyperXWM;
+// Cloud III S from github.com/LennardKittner/HyperHeadset; Cloud Stinger Core from
+// github.com/davidsantanaalves/HyperBatteryMonitor (also Cloud Core Wireless DTS 0951:173F, verified on hardware);
 // the others follow github.com/Sapd/HeadsetControl.
 #include "drivers.h"
+#include "hyperx_protocol.h"
 
 #include <cmath>
 
 namespace {
 
-// Writes `req` and returns the first input report accepted by `match` within `timeoutMs`.
+// Writes `req` after flushing stale queued reports and returns the first input report accepted by `match`.
 template <class Match>
 bool Query(HidDev& d, const std::vector<BYTE>& req, std::vector<BYTE>& resp, int timeoutMs, Match match) {
+    d.Flush();
     if (!d.Write(req)) return false;
     ULONGLONG end = GetTickCount64() + timeoutMs;
     for (;;) {
@@ -115,6 +120,39 @@ bool CloudAlpha2(const HidColl& c, DeviceStatus& s) {
     return true;
 }
 
+// Pulsefire Haste 2 (Core) Wireless: NGENUITY's read-only battery query, 52 01 / 50 02 pair.
+bool HasteWireless(const HidColl& c, DeviceStatus& s) {
+    HidDev d;
+    if (!d.Open(c)) return false;
+    auto q = [&](BYTE cmd, BYTE sub, std::vector<BYTE>& r) {
+        return Query(d, { cmd, sub }, r, 1000, [cmd, sub](const std::vector<BYTE>& r) { return r.size() >= 8 && r[0] == cmd + 1 && r[1] == sub; });
+    };
+    std::vector<BYTE> r;
+    bool linkKnown = q(0x52, 0x01, r);
+    bool linked = !linkKnown || r[2] != 0;
+    bool gotBattery = linked && q(0x50, 0x02, r) && r[2] <= 100;
+    if (!linkKnown && !gotBattery) return false;
+
+    static ULONGLONG linkUpAt = 0;
+    static bool polled = false;
+    const ULONGLONG kSettleMs = 6000;
+    ULONGLONG now = GetTickCount64();
+    if (!linked) linkUpAt = 0;
+    else if (linkUpAt == 0) linkUpAt = polled ? now : now - kSettleMs;
+    polled = true;
+    bool settled = now - linkUpAt >= kSettleMs;
+
+    s = Base(c.pid, c.pid == 0x0AB5 ? L"HyperX Pulsefire Haste 2 Core Wireless" : L"HyperX Pulsefire Haste 2 Wireless");
+    s.kind = DeviceKind::Mouse;
+    s.connected = linked;
+    if (gotBattery && settled) {
+        s.percent = r[2];
+        s.charging = r[3] == 0x01 || r[3] == 0x02;
+        s.millivolts = r[6] | (r[7] << 8);
+    }
+    return true;
+}
+
 // Cloud Flight: 21 FF 05 -> [3..4] mV (above 0x100B means charging).
 bool CloudFlight(const HidColl& c, DeviceStatus& s) {
     HidDev d;
@@ -138,44 +176,106 @@ bool CloudFlight(const HidColl& c, DeviceStatus& s) {
     return true;
 }
 
-// Cloud III S Wireless: report 0C [02 03 01 00 <cmd>]; reply [5] = cmd, [6] = value (FF = invalid).
-//   02 -> [6] == 2 connected, 06 -> [6] %, 48 -> [6] 0 discharging / 1 charging / 2 full.
-// From github.com/LennardKittner/HyperHeadset (cloud_iii_s_wireless.rs).
+// Cloud III S Wireless (03F0:06BE, 03F0:02CC):
+//   1. Primary protocol (LennardKittner/HyperHeadset): report 0C [02 03 01 00 <cmd>];
+//      02 -> [6] == 2 connected (FF = offline), 06 -> [6] %, 48 -> [6] 0 discharging / 1 charging / 2 full.
+//   2. Fallback protocol (auto94): [AA 00 00 02 09 01] (%) and [AA 00 00 02 08 01] (charge).
 bool Cloud3S(const HidColl& c, DeviceStatus& s) {
     HidDev d;
     if (!d.Open(c)) return false;
-    auto q = [&](BYTE cmd, std::vector<BYTE>& r) {
-        return Query(d, { 0x0C, 0x02, 0x03, 0x01, 0x00, cmd }, r, 1000,
-                     [cmd](const std::vector<BYTE>& r) { return r.size() >= 7 && r[0] == 0x0C && r[5] == cmd && r[6] != 0xFF; });
+    auto q0c = [&](BYTE cmd, std::vector<BYTE>& r) {
+        return Query(d, { 0x0C, 0x02, 0x03, 0x01, 0x00, cmd }, r, 600,
+                     [cmd](const std::vector<BYTE>& r) { return r.size() >= 7 && r[0] == 0x0C && r[5] == cmd; });
     };
-    std::vector<BYTE> r;
-    if (!q(0x02, r)) return false;
+    std::vector<BYTE> rConn, rPct, rChg;
+    if (q0c(0x02, rConn)) {
+        s = Base(c.pid, L"HyperX Cloud III S Wireless");
+        s.connected = (rConn[6] == 2);
+        if (!s.connected) return true;
+        q0c(0x06, rPct);
+        q0c(0x48, rChg);
+        auto dec = DecodeCloud3SReplies(rPct.data(), rPct.size(), rChg.data(), rChg.size());
+        if (dec.valid) {
+            s.connected = dec.connected;
+            s.charging = dec.charging;
+            s.percent = dec.percent;
+        }
+        return true;
+    }
+
+    // Fallback to 0xAA framing if report 0x0C did not answer on this collection
+    bool got09 = Query(d, { 0x00, 0xAA, 0x00, 0x00, 0x02, 0x09, 0x01 }, rPct, 350,
+                       [](const std::vector<BYTE>& r) { return r.size() >= 7 && r[0] == 0xAA && r[4] == 0x09; });
+    bool got08 = Query(d, { 0x00, 0xAA, 0x00, 0x00, 0x02, 0x08, 0x01 }, rChg, 350,
+                       [](const std::vector<BYTE>& r) { return r.size() >= 7 && r[0] == 0xAA && r[4] == 0x08; });
+    if (!got09 && !got08) return false;
+    auto dec = DecodeCloud3SReplies(rPct.data(), rPct.size(), rChg.data(), rChg.size());
+    if (!dec.valid) return false;
     s = Base(c.pid, L"HyperX Cloud III S Wireless");
-    s.connected = r[6] == 2;
-    if (!s.connected) return true;
-    if (q(0x06, r) && r[6] <= 100) s.percent = r[6];
-    if (q(0x48, r)) s.charging = r[6] == 1 || r[6] == 2;
+    s.connected = dec.connected;
+    s.charging = dec.charging;
+    s.percent = dec.percent;
+    return true;
+}
+
+// Cloud Stinger Core Wireless (+ 7.1) and Cloud Core Wireless DTS: feature report FF on FF00:0001.
+bool StingerCore(const HidColl& c, DeviceStatus& s) {
+    static const std::vector<BYTE> kConnection = { 0xFF, 0x07, 0x00, 0xFD, 0x04, 0x00, 0x00, 0x02, 0x82, 0x03,
+                                                   0x05, 0x29, 0x0F, 0x00, 0x00, 0x03, 0x68, 0x10, 0x00, 0x00 };
+    static const std::vector<BYTE> kBattery = { 0xFF, 0x07, 0x00, 0xFD, 0x04, 0x0C, 0xF1, 0x02, 0x01, 0x04, 0xF0, 0x0C };
+    static const int kPct[] = { 100, 90, 80, 70, 60, 50, 40, 30, 20, 10, 0 };
+    static const int kChargingMv[] = { 4130, 4090, 4050, 4000, 3967, 3946, 3930, 3916, 3871, 3831, 3400 };
+    static const int kDischargingMv[] = { 4121, 4042, 3954, 3905, 3838, 3785, 3763, 3738, 3700, 3651, 3517 };
+
+    HidDev d;
+    if (!d.Open(c)) return false;
+    const bool ps = c.pid == 0x0A93 || c.pid == 0x1713 || c.pid == 0x173F;
+    auto exchange = [&](const std::vector<BYTE>& cmd, std::vector<BYTE>& r, bool (*good)(const std::vector<BYTE>&)) {
+        if (!d.SetFeature(cmd)) return false;
+        for (int i = 0; i < (ps ? 10 : 1); i++) {
+            Sleep(20);
+            if (!d.GetFeature(0xFF, r) || r.size() < 13) return false;
+            if (!ps || good(r)) return true;
+        }
+        return false;
+    };
+    auto fresh = [](const std::vector<BYTE>& r) { return !(r[1] == 0x01 && r[2] == 0x00); };
+    auto battery = [](const std::vector<BYTE>& r) { return r[0] == 0xFF && r[1] == 0x12 && r[2] == 0x05; };
+
+    std::vector<BYTE> r;
+    if (!exchange(kConnection, r, fresh) && !(ps && r.size() >= 13 && !fresh(r))) return false;
+    s = Base(c.pid, c.pid == 0x173F ? L"HyperX Cloud Core Wireless" : L"HyperX Cloud Stinger Core Wireless");
+    s.connected = r[11] == 0x01;
+    if (!s.connected || !exchange(kBattery, r, battery)) return true;
+    BYTE code = r[9];
+    if (code != 0x03 && code != 0x05 && code != 0x06) return true;
+    s.millivolts = r[11] | (r[12] << 8);
+    s.charging = code == 0x05;
+    s.percent = code == 0x06 ? 100 : Interpolate(s.millivolts, code == 0x05 ? kChargingMv : kDischargingMv, kPct, 11);
     return true;
 }
 
 struct Model {
     USHORT vid;
     std::vector<USHORT> pids;
-    bool (*accept)(const HidColl&);  // which collection carries the protocol
+    bool (*accept)(const HidColl&);
     bool (*poll)(const HidColl&, DeviceStatus&);
 };
 
 const Model kModels[] = {
     { 0x03F0, { 0x05B7, 0x0C9D }, [](const HidColl& c) { return c.outLen() == 62 && c.inLen() == 62; }, Cloud3 },
-    // Cloud II Core Wireless: same 66 <cmd> protocol as Cloud III Wireless, 64-byte reports (HyperHeadset).
     { 0x03F0, { 0x069F, 0x0995 }, [](const HidColl& c) { return c.page() >= 0xFF00 && c.outLen() >= 62 && c.inLen() >= 62; }, Cloud3 },
-    { 0x03F0, { 0x06BE, 0x02CC }, [](const HidColl& c) { return c.page() >= 0xFF00 && c.outLen() >= 7; }, Cloud3S },
+    // Cloud III S: usage page 01C0 (or vendor >= FF00) with 64/65-byte reports (P0-7).
+    { 0x03F0, { 0x06BE, 0x02CC }, [](const HidColl& c) { return IsCloud3SCollection(c.page(), c.inLen(), c.outLen()); }, Cloud3S },
     { 0x03F0, { 0x0696, 0x018B, 0x0D93 }, [](const HidColl& c) { return c.page() == 0xFF90 && c.usage() == 0x0303; }, Cloud2 },
     { 0x0951, { 0x1718 }, [](const HidColl& c) { return c.outLen() == 62; }, Cloud2Kingston },
     { 0x03F0, { 0x098D }, [](const HidColl& c) { return c.page() >= 0xFF00 && c.outLen() >= 3; }, CloudAlpha },
     { 0x03F0, { 0x08BE }, [](const HidColl& c) { return c.page() == 0xFF13 && c.usage() == 0xFF00; }, CloudAlpha2 },
+    { 0x03F0, { 0x0AB5, 0x0D97, 0x0F98 }, [](const HidColl& c) { return c.page() >= 0xFF00 && c.outLen() >= 2 && c.inLen() >= 8; }, HasteWireless },
     { 0x0951, { 0x16C4, 0x1723, 0x1749 }, [](const HidColl& c) { return c.page() >= 0xFF00 && c.outLen() >= 3; }, CloudFlight },
-    { 0x03F0, { 0x0E90 }, [](const HidColl& c) { return c.page() >= 0xFF00 && c.outLen() >= 3; }, CloudFlight },  // Cloud Flight (HP)
+    { 0x03F0, { 0x0E90 }, [](const HidColl& c) { return c.page() >= 0xFF00 && c.outLen() >= 3; }, CloudFlight },
+    { 0x03F0, { 0x0A93 }, [](const HidColl& c) { return c.page() == 0xFF00 && c.usage() == 0x0001 && c.featLen() >= 32; }, StingerCore },
+    { 0x0951, { 0x170B, 0x1713, 0x173F }, [](const HidColl& c) { return c.page() == 0xFF00 && c.usage() == 0x0001 && c.featLen() >= 32; }, StingerCore },
 };
 
 }  // namespace

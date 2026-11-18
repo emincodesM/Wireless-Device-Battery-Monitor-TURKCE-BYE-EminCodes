@@ -1,19 +1,21 @@
 @echo off
-rem Builds WirelessBattery.exe with MinGW-w64 (g++ and windres on PATH).
 setlocal
-cd /d "%~dp0"
+where g++ >nul 2>nul || (
+    echo g++ not found on PATH. Install MinGW-w64 ^(e.g. via MSYS2 or WinLibs^) and try again.
+    exit /b 1
+)
+
 if not exist build mkdir build
-windres -i res\app.rc -o build\app_res.o --include-dir res || exit /b 1
-g++ -std=c++17 -Os -municode -mwindows -static -s -ffunction-sections -fdata-sections -Wl,--gc-sections ^
-    -D_WIN32_WINNT=0x0A00 -DWINVER=0x0A00 -Wall -Wno-missing-field-initializers ^
-    src\main.cpp src\devices.cpp src\widget.cpp src\flyout.cpp src\hid.cpp ^
-    src\drivers\glorious.cpp src\drivers\aula.cpp src\drivers\kysona.cpp src\drivers\atk_serial.cpp ^
-    src\drivers\keychron.cpp src\drivers\lamzu.cpp src\drivers\rongyuan.cpp src\drivers\sony_inzone.cpp ^
-    src\drivers\rog.cpp src\drivers\zowie.cpp src\drivers\misc_mice.cpp src\drivers\razer_headset.cpp ^
-    src\drivers\hyperx.cpp src\drivers\logitech.cpp src\drivers\razer.cpp ^
-    src\drivers\steelseries.cpp src\drivers\corsair.cpp src\drivers\coolermaster.cpp ^
-    src\drivers\playstation.cpp src\drivers\gamesir.cpp src\drivers\xinput.cpp src\drivers\rapoo.cpp ^
-    src\drivers\generic.cpp src\drivers\headsetcontrol.cpp ^
-    build\app_res.o -o WirelessBattery.exe ^
-    -lhid -lsetupapi -lcfgmgr32 -lole32 -lcomctl32 -lgdi32 -lruntimeobject || exit /b 1
+windres -i res/app.rc -o build/app_res.o || exit /b 1
+
+g++ -std=c++17 -O2 -Wall -Wextra -Wno-missing-field-initializers -municode -DUNICODE -D_UNICODE -DWINVER=0x0A00 -D_WIN32_WINNT=0x0A00 ^
+    -finput-charset=UTF-8 -fexec-charset=UTF-8 -ffunction-sections -fdata-sections ^
+    src/main.cpp src/flyout.cpp src/widget.cpp src/tray.cpp src/settings.cpp src/battery_model.cpp ^
+    src/brands.cpp src/labels.cpp src/i18n.cpp src/devices.cpp src/hid.cpp ^
+    src/drivers/*.cpp ^
+    build/app_res.o ^
+    -o WirelessBattery.exe ^
+    -mwindows -municode -s -static-libgcc -static-libstdc++ -Wl,--gc-sections ^
+    -lsetupapi -lhid -lcfgmgr32 -lole32 -loleaut32 -luuid -lcomctl32 -luxtheme -ldwmapi -lruntimeobject -lws2_32 || exit /b 1
+
 echo Built WirelessBattery.exe

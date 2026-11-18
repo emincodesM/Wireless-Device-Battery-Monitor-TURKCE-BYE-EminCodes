@@ -1,150 +1,158 @@
-// ATK N9 Ultra (VID 373B: dongle 1204, wired 1203) and ATK N9 Pro (VID 373B: dongle 11CB, wired 11CA) headsets.
-// Queried over a USB virtual COM port (9600 8N1) with 64-byte frames:
-//   request [len = 2][cmd][sub][0...]        reply [len][cmd][sub][data...]
-//   cmd 00 sub 04 = status  -> data[1] == 1 when the headset is connected to the dongle
-//   cmd 00 sub 03 = battery -> data[1] = percent (bits 0-6), charging (bit 7)
-// Protocol from ATK's own configuration software (ATK HUB).
-// If ATK HUB is open and holds the COM port, the headset stays visible in asleep/cached state.
+// ATK Neptune N9 Pro / N9 Ultra wireless headsets (VID 373E, BES chip).
+// Despite exposing two vendor HID collections, ATK HUB talks to these headsets over the
+// USB CDC virtual serial port (MI_03 -> COMx) at 115200 8N1.
+// Frame format: 5A A5 [len_lo] [len_hi] [cmd] [payload...] [sum], where len = 1 + payload size
+// and sum = low byte of (len_lo + len_hi + cmd + payload).
+//   Host -> device: 5A A5 01 00 22 23  (status query)
+//   Device -> host: cmd 0x20 [?, connected]   (1 when headset linked to dongle)
+//                   cmd 0x24 [percent]        (0..100)
+//                   cmd 0x26 [charging]       (0 or 1)
 #include "drivers.h"
+#include "atk_serial_protocol.h"
 
 #include <setupapi.h>
 #include <initguid.h>
 #include <devguid.h>
-
 #include <cwctype>
 #include <string>
 
 namespace {
 
-struct Port { std::wstring name; USHORT pid; };
+struct Model { USHORT pid; const wchar_t* id; const wchar_t* name; bool wired; };
+constexpr Model kModels[] = {
+    { 0x1007, L"N9Pro",   L"ATK Neptune N9 Pro",   true  },
+    { 0x1009, L"N9Ultra", L"ATK Neptune N9 Ultra", true  },
+    { 0x1022, L"N9Pro",   L"ATK Neptune N9 Pro",   false },
+    { 0x1023, L"N9Pro",   L"ATK Neptune N9 Pro",   false },
+    { 0x1028, L"N9Ultra", L"ATK Neptune N9 Ultra", false },
+    { 0x1029, L"N9Ultra", L"ATK Neptune N9 Ultra", false },
+};
 
-USHORT ExtractPid(const std::wstring& upperId) {
-    size_t pos = upperId.find(L"VID_373B&PID_");
-    if (pos == std::wstring::npos || pos + 17 > upperId.size()) return 0;
-    return (USHORT)wcstoul(upperId.c_str() + pos + 13, nullptr, 16);
+const Model* FindModel(const std::wstring& hwId) {
+    std::wstring u = hwId;
+    for (auto& ch : u) ch = towupper(ch);
+    if (u.find(L"VID_373E") == std::wstring::npos) return nullptr;
+    auto p = u.find(L"PID_");
+    if (p == std::wstring::npos) return nullptr;
+    USHORT pid = (USHORT)wcstoul(u.c_str() + p + 4, nullptr, 16);
+    for (const auto& m : kModels)
+        if (m.pid == pid) return &m;
+    return nullptr;
 }
 
-std::vector<Port> FindPorts() {
-    std::vector<Port> out;
-    HDEVINFO di = SetupDiGetClassDevsW(&GUID_DEVCLASS_PORTS, nullptr, nullptr, DIGCF_PRESENT);
-    if (di == INVALID_HANDLE_VALUE) return out;
-    SP_DEVINFO_DATA dd{ sizeof(dd) };
-    for (DWORD i = 0; SetupDiEnumDeviceInfo(di, i, &dd); i++) {
-        wchar_t inst[512];
-        if (!SetupDiGetDeviceInstanceIdW(di, &dd, inst, 512, nullptr)) continue;
-        std::wstring id = inst;
-        for (auto& ch : id) ch = towupper(ch);
-        USHORT pid = ExtractPid(id);
-        if (!pid) continue;
-        HKEY k = SetupDiOpenDevRegKey(di, &dd, DICS_FLAG_GLOBAL, 0, DIREG_DEV, KEY_READ);
-        if (k == INVALID_HANDLE_VALUE) continue;
-        wchar_t name[32] = {};
-        DWORD sz = sizeof(name) - sizeof(wchar_t), type = 0;
-        if (RegQueryValueExW(k, L"PortName", nullptr, &type, (BYTE*)name, &sz) == ERROR_SUCCESS && type == REG_SZ)
-            out.push_back({ name, pid });
-        RegCloseKey(k);
-    }
-    SetupDiDestroyDeviceInfoList(di);
-    return out;
+std::wstring ExtractComName(const std::wstring& friendly) {
+    auto l = friendly.rfind(L"(COM");
+    if (l == std::wstring::npos) return {};
+    auto r = friendly.find(L')', l);
+    if (r == std::wstring::npos) return {};
+    return friendly.substr(l + 1, r - l - 1);
 }
 
-bool IsWiredPid(USHORT pid) {
-    return pid == 0x11CA || pid == 0x1203;
-}
+struct SerialHandle {
+    HANDLE h = INVALID_HANDLE_VALUE;
+    ~SerialHandle() { if (h != INVALID_HANDLE_VALUE) CloseHandle(h); }
+    bool ok() const { return h != INVALID_HANDLE_VALUE; }
+};
 
-const wchar_t* ModelName(USHORT pid) {
-    if (pid == 0x11CB || pid == 0x11CA) return L"ATK N9 Pro";
-    return L"ATK N9 Ultra";
-}
+SerialHandle OpenCom(const std::wstring& com) {
+    SerialHandle s;
+    std::wstring path = L"\\\\.\\" + com;
+    s.h = CreateFileW(path.c_str(), GENERIC_READ | GENERIC_WRITE, 0, nullptr, OPEN_EXISTING, 0, nullptr);
+    if (!s.ok()) return s;
 
-class Serial {
-public:
-    explicit Serial(const std::wstring& port) {
-        h_ = CreateFileW((L"\\\\.\\" + port).c_str(), GENERIC_READ | GENERIC_WRITE, 0, nullptr, OPEN_EXISTING, 0, nullptr);
-        if (h_ == INVALID_HANDLE_VALUE) return;
-        DCB dcb{ sizeof(dcb) };
-        GetCommState(h_, &dcb);
-        dcb.BaudRate = CBR_9600;
+    DCB dcb{};
+    dcb.DCBlength = sizeof(dcb);
+    if (GetCommState(s.h, &dcb)) {
+        dcb.BaudRate = 115200;
         dcb.ByteSize = 8;
         dcb.Parity = NOPARITY;
         dcb.StopBits = ONESTOPBIT;
-        dcb.fBinary = TRUE;
-        dcb.fOutxCtsFlow = dcb.fOutxDsrFlow = FALSE;
         dcb.fDtrControl = DTR_CONTROL_ENABLE;
         dcb.fRtsControl = RTS_CONTROL_ENABLE;
-        dcb.fOutX = dcb.fInX = FALSE;
-        COMMTIMEOUTS to{};
-        to.ReadIntervalTimeout = 50;
-        to.ReadTotalTimeoutConstant = 300;
-        to.WriteTotalTimeoutConstant = 300;
-        if (!SetCommState(h_, &dcb) || !SetCommTimeouts(h_, &to)) Close();
-        else PurgeComm(h_, PURGE_RXCLEAR | PURGE_TXCLEAR);
+        SetCommState(s.h, &dcb);
     }
-    ~Serial() { Close(); }
-    bool ok() const { return h_ != INVALID_HANDLE_VALUE; }
-
-    // Sends command (cmd, sub) and returns the data bytes of the matching 64-byte reply frame.
-    bool Command(BYTE cmd, BYTE sub, std::vector<BYTE>& data) {
-        BYTE frame[64] = { 2, cmd, sub };
-        DWORD n = 0;
-        if (!WriteFile(h_, frame, sizeof(frame), &n, nullptr) || n != sizeof(frame)) return false;
-        std::vector<BYTE> buf;
-        ULONGLONG end = GetTickCount64() + 800;
-        while ((LONGLONG)end - (LONGLONG)GetTickCount64() > 0) {
-            BYTE chunk[128];
-            if (!ReadFile(h_, chunk, sizeof(chunk), &n, nullptr)) return false;
-            buf.insert(buf.end(), chunk, chunk + n);
-            while (buf.size() >= 64) {  // the headset also pushes unsolicited frames; skip those
-                if (buf[1] == cmd && buf[2] == sub) {
-                    data.assign(buf.begin() + 3, buf.begin() + 64);
-                    return true;
-                }
-                buf.erase(buf.begin(), buf.begin() + 64);
-            }
-        }
-        return false;
-    }
-
-private:
-    void Close() {
-        if (h_ != INVALID_HANDLE_VALUE) CloseHandle(h_);
-        h_ = INVALID_HANDLE_VALUE;
-    }
-    HANDLE h_ = INVALID_HANDLE_VALUE;
-};
+    COMMTIMEOUTS to{};
+    to.ReadIntervalTimeout = 30;
+    to.ReadTotalTimeoutConstant = 250;
+    to.WriteTotalTimeoutConstant = 200;
+    SetCommTimeouts(s.h, &to);
+    PurgeComm(s.h, PURGE_RXCLEAR | PURGE_TXCLEAR);
+    return s;
+}
 
 }  // namespace
 
 void PollAtkSerial(PollContext& ctx) {
-    for (const Port& p : FindPorts()) {
-        if (ctx.IsClaimed(0x373B, p.pid)) continue;
-        DeviceStatus s;
-        s.key = L"atk-serial:" + Hex4(p.pid);
-        s.name = ModelName(p.pid);
-        s.kind = DeviceKind::Headset;
-        s.via = IsWiredPid(p.pid) ? L"USB kablosu" : L"2.4 GHz alıcı";
-        s.graceSec = 1800;  // keep last known battery for 30 min while asleep or ATK HUB holds the port
+    HDEVINFO di = SetupDiGetClassDevsW(&GUID_DEVCLASS_PORTS, nullptr, nullptr, DIGCF_PRESENT);
+    if (di == INVALID_HANDLE_VALUE) return;
 
-        Serial port(p.name);
+    SP_DEVINFO_DATA dd{ sizeof(dd) };
+    for (DWORD i = 0; SetupDiEnumDeviceInfo(di, i, &dd); i++) {
+        wchar_t id[512] = {};
+        if (!SetupDiGetDeviceInstanceIdW(di, &dd, id, 512, nullptr)) continue;
+        const Model* m = FindModel(id);
+        if (!m) continue;
+
+        wchar_t friendly[256] = {};
+        SetupDiGetDeviceRegistryPropertyW(di, &dd, SPDRP_FRIENDLYNAME, nullptr, (BYTE*)friendly, sizeof(friendly), nullptr);
+        std::wstring com = ExtractComName(friendly);
+        if (com.empty()) continue;
+
+        DeviceStatus s;
+        // Stable model-based key so switching USB ports or connecting USB cable + dongle simultaneously
+        // updates the same device card.
+        s.key = std::wstring(L"atk-serial:") + m->id;
+        s.name = m->name;
+        s.kind = DeviceKind::Headset;
+        s.via = m->wired ? L"USB cable" : L"2.4 GHz receiver";
+        s.graceSec = 1800; // Keep last known battery for up to 30 min when busy or asleep
+
+        auto port = OpenCom(com);
         if (!port.ok()) {
-            // COM port is busy (e.g. ATK HUB is open): keep the device visible in asleep/cached mode.
+            // Port is busy (e.g. ATK HUB / Web HUB holds exclusive access to the COM port).
+            // Report connected+asleep so the main loop preserves the last cached battery level.
             s.connected = true;
             s.asleep = true;
-            ctx.Add(s, 0x373B, p.pid);
+            s.hint = L"ATK HUB a\x00E7\x0131kken COM portu me\x015Fgul olabilir (\x00F6nbellek kullan\x0131l\x0131yor)";
+            MergeByKey(ctx, s, 0x373E, m->pid, false);
             continue;
         }
-        std::vector<BYTE> data;
-        if (!port.Command(0x00, 0x04, data)) {
-            s.connected = true;
-            s.asleep = true;
-            ctx.Add(s, 0x373B, p.pid);
+
+        const BYTE query[] = { 0x5A, 0xA5, 0x01, 0x00, 0x22, 0x23 };
+        DWORD wr = 0;
+        if (!WriteFile(port.h, query, sizeof(query), &wr, nullptr) || wr != sizeof(query)) {
+            s.connected = false;
+            MergeByKey(ctx, s, 0x373E, m->pid, false);
             continue;
         }
-        s.connected = data[1] == 1;
-        if (s.connected && port.Command(0x00, 0x03, data)) {
-            s.percent = Clamp100(data[1] & 0x7F);
-            s.charging = (data[1] & 0x80) != 0;
+
+        std::vector<BYTE> buf(256);
+        DWORD rd = 0;
+        ReadFile(port.h, buf.data(), (DWORD)buf.size(), &rd, nullptr);
+        buf.resize(rd);
+
+        auto frames = ParseAtkSerialFrames(buf);
+        int pct = -1;
+        bool chg = false;
+        bool connected = true;
+        if (!DecodeAtkSerialStatus(frames, m->wired, pct, chg, connected)) {
+            if (!connected) {
+                s.connected = false;
+                MergeByKey(ctx, s, 0x373E, m->pid, false);
+            } else {
+                // Dongle did not reply in time; treat as temporary sleep/cache hit.
+                s.connected = true;
+                s.asleep = true;
+                MergeByKey(ctx, s, 0x373E, m->pid, false);
+            }
+            continue;
         }
-        ctx.Add(s, 0x373B, p.pid);
+
+        s.percent = Clamp100(pct);
+        s.charging = chg;
+        s.connected = true;
+        s.asleep = false;
+        MergeByKey(ctx, s, 0x373E, m->pid, m->wired);
     }
+    SetupDiDestroyDeviceInfoList(di);
 }

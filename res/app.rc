@@ -1,27 +1,50 @@
-#include <winver.h>
+#include <windows.h>
+#include "version.h"
 
+#pragma code_page(65001)
+
+1 RT_MANIFEST "app.manifest"
 1 ICON "app.ico"
-1 24 "app.manifest"
+
+// Translation tables (UTF-8 key=value, loaded by src/i18n.cpp). IDs match kLanguages in i18n.cpp.
+201 RCDATA "../lang/ar.txt"
+202 RCDATA "../lang/de.txt"
+203 RCDATA "../lang/es.txt"
+204 RCDATA "../lang/fr.txt"
+205 RCDATA "../lang/he.txt"
+206 RCDATA "../lang/ja.txt"
+207 RCDATA "../lang/pl.txt"
+208 RCDATA "../lang/pt-BR.txt"
+209 RCDATA "../lang/ru.txt"
+210 RCDATA "../lang/tr.txt"
+211 RCDATA "../lang/zh-CN.txt"
+212 RCDATA "../lang/zh-TW.txt"
 
 VS_VERSION_INFO VERSIONINFO
-FILEVERSION 1,0,0,0
-PRODUCTVERSION 1,0,0,0
-FILEOS VOS_NT_WINDOWS32
-FILETYPE VFT_APP
+FILEVERSION     APP_VERSION_CSV
+PRODUCTVERSION  APP_VERSION_CSV
+FILEFLAGSMASK   VS_FFI_FILEFLAGSMASK
+FILEFLAGS       0
+FILEOS          VOS_NT_WINDOWS32
+FILETYPE        VFT_APP
+FILESUBTYPE     0
 BEGIN
-  BLOCK "StringFileInfo"
-  BEGIN
-    BLOCK "040904B0"
+    BLOCK "StringFileInfo"
     BEGIN
-      VALUE "FileDescription", "Wireless Battery"
-      VALUE "ProductName", "Wireless Battery"
-      VALUE "FileVersion", "1.0.0"
-      VALUE "ProductVersion", "1.0.0"
-      VALUE "OriginalFilename", "WirelessBattery.exe"
+        BLOCK "040904B0"
+        BEGIN
+            VALUE "CompanyName",      "WirelessBattery"
+            VALUE "FileDescription",  "Kablosuz Cihaz Pil İzleyici (Wireless Device Battery Monitor)"
+            VALUE "FileVersion",      APP_VERSION_STR
+            VALUE "InternalName",     "WirelessBattery"
+            VALUE "LegalCopyright",   "GPL-3.0"
+            VALUE "OriginalFilename", "WirelessBattery.exe"
+            VALUE "ProductName",      "Wireless Device Battery Monitor"
+            VALUE "ProductVersion",   APP_VERSION_STR
+        END
     END
-  END
-  BLOCK "VarFileInfo"
-  BEGIN
-    VALUE "Translation", 0x409, 1200
-  END
+    BLOCK "VarFileInfo"
+    BEGIN
+        VALUE "Translation", 0x0409, 1200
+    END
 END

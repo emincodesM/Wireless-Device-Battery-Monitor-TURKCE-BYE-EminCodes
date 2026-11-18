@@ -1,123 +1,121 @@
-# Wireless Battery (Enhanced Edition / Gelişmiş Sürüm)
+<div align="center">
 
-Battery levels of your wireless mouse, headset, keyboard and controller, right on the Windows taskbar.  
-*Kablosuz fare, kulaklık, klavye ve oyun kollarınızın pil seviyeleri doğrudan Windows görev çubuğunda.*
+<img src="res/app.ico" width="92" height="92" alt="Wireless Battery icon">
 
-![Wireless Battery on the taskbar](docs/screenshot.png)
+# Kablosuz Cihaz Pil İzleyici (Wireless Device Battery Monitor)
 
-[![Son Sürüm / Latest Release](https://img.shields.io/github/v/release/emincodesM/Wireless-Device-Battery-Monitor-TURKCE-BYE-EminCodes?label=Son%20S%C3%BCr%C3%BCm%20%28Setup%29&style=for-the-badge&color=success)](https://github.com/emincodesM/Wireless-Device-Battery-Monitor-TURKCE-BYE-EminCodes/releases/latest)
-[![Build Status](https://img.shields.io/github/actions/workflow/status/emincodesM/Wireless-Device-Battery-Monitor-TURKCE-BYE-EminCodes/build.yml?branch=main&style=for-the-badge&label=Build)](https://github.com/emincodesM/Wireless-Device-Battery-Monitor-TURKCE-BYE-EminCodes/actions)
+**Windows 10 & 11 için hafif, üretici yazılımı (bloatware) gerektirmeyen görev çubuğu pil göstergesi ve modern Windows 11 Flyout paneli.**  
+*Lightweight, bloatware-free taskbar battery indicator and modern Windows 11 Flyout panel for 70+ wireless mice, keyboards, headsets, earbuds, gamepads, and phones.*
 
-> **Hemen Kurmak İster misiniz?**  
-> Sağ taraftaki **Releases** bölümünden veya **[buraya tıklayarak son sürümden](https://github.com/emincodesM/Wireless-Device-Battery-Monitor-TURKCE-BYE-EminCodes/releases/latest)** **`WirelessBattery-Setup-1.0.0.exe`** dosyasını indirip tek tıkla kurabilirsiniz.
+[![Platform](https://img.shields.io/badge/platform-Windows%2010%20%7C%2011%20(x64)-0078D4?logo=windows)](https://github.com/emincodesM/Wireless-Device-Battery-Monitor-TURKCE-BYE-EminCodes)
+[![Release](https://img.shields.io/badge/version-v1.0.8-2ECC71)](https://github.com/emincodesM/Wireless-Device-Battery-Monitor-TURKCE-BYE-EminCodes/releases)
+[![Build](https://github.com/emincodesM/Wireless-Device-Battery-Monitor-TURKCE-BYE-EminCodes/actions/workflows/build.yml/badge.svg)](https://github.com/emincodesM/Wireless-Device-Battery-Monitor-TURKCE-BYE-EminCodes/actions/workflows/build.yml)
+[![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
 
----
+[**İndir / Download (Releases)**](https://github.com/emincodesM/Wireless-Device-Battery-Monitor-TURKCE-BYE-EminCodes/releases) • [**Desteklenen Cihazlar**](#-desteklenen-cihazlar-ve-sürücüler-supported-devices--v108) • [**Kurulum**](#-kurulum-ve-kullanım-installation--usage) • [**Yeni Cihaz Talebi**](https://github.com/emincodesM/Wireless-Device-Battery-Monitor-TURKCE-BYE-EminCodes/issues/new?template=device_request.md)
 
-### 🌟 Enhanced Edition Highlights (Özel Sürüm Yenilikleri)
+<br>
 
-- 🎧 **ATK N9 Ultra Kablosuz Kulaklık Desteği:** ATK N9 Ultra (`VID 373B`, `PID 1204` 2.4 GHz alıcı & `PID 1203` USB kablolu) için USB sanal COM portu üzerinden tam pil ve şarj takibi eklendi.
-- 🖱️ **ASUS ROG Harpe Ace Çift Bağlantı / Akıllı Öncelik Düzeltmesi:** Hem USB kablosu hem 2.4 GHz dongle takılıyken (şarj esnasında) kablodan gelen canlı pil verisine öncelik verilir, fare uyku modunda veya %0 kalmaz.
-- 🪟 **Modern Windows 11 Açılır Panel (Flyout UI):** Görev çubuğundaki pil widget'ına sol tıklandığında açılan modern, şık flyout penceresi (cihaz listesi, renkli pil çubukları, bağlantı türü, şarj durumu ve anında yenileme).
-- 🇹🇷 **Tam Türkçe Arayüz & Bildirimler:** Görev çubuğu widget'ında `%XX` formatı, Türkçe menüler, ipuçları ve düşük pil Windows bildirimleri.
-- 📦 **Dahili Hafif Kurulum Sihirbazı (Native Win32 Setup):** Ek yazılıma gerek kalmadan doğrudan MinGW ile derlenebilen, AppData'ya kuran ve Windows başlangıcına otomatik ekleyen installer (`installer/build-installer.ps1`).
+<img src="docs/screenshot.png" width="680" alt="Wireless Device Battery Monitor Screenshot">
 
----
-
-## Özellikler / Features
-
-- **Hafif ve Hızlı (Tiny):** ~450 KB boyutunda, ~2-3 MB RAM tüketen saf C++/Win32 uygulaması. Arka plan servisi veya runtime gerektirmez.
-- **Üretici Yazılımlarına İhtiyaç Duymaz:** Cihazlarla doğrudan standart Windows sürücüleri üzerinden haberleşir. Armoury Crate, ATK HUB, G HUB, Synapse, iCUE kapalı olsa dahi çalışır (açık olmaları durumunda da çakışmaz).
-- **Geniş Marka Desteği:** ATK, ASUS ROG, Logitech, Razer, SteelSeries, Corsair, HyperX, Glorious, PlayStation ve Xbox kolları, Bluetooth cihazları ve HeadsetControl uyumlu tüm kulaklıklar.
-
-## Arayüz / Display
-
-**Görev Çubuğunda (Varsayılan):** Bildirim alanının yanında `🎧 %90  🖱 %98` şeklinde gösterilir.
-- **Sol Tıklama:** Modern Windows 11 Flyout panelini açar / kapatır.
-- **Sağ Tıklama:** Cihaz seçimi, yenileme, başlangıçta çalışma ve çıkış menüsünü açar.
-- **Düşük Pil:** %15 veya daha az olduğunda sayı kırmızı renge döner ve masaüstü bildirimi gönderilir.
-- **Şarj Durumu:** Şarj olurken sayının yanında mavi ⚡ simgesi belirir.
-- **Uyku Modu:** Cihaz uykuya geçtiğinde son bilinen değer soluk renkte tutulur.
+</div>
 
 ---
 
-## Desteklenen Cihazlar / Supported Devices
+## 🌟 Öne Çıkan Özellikler (Key Features)
 
-| Üretici / Marka | Desteklenen Cihazlar | İletişim Yöntemi |
+- **Görev Çubuğu Widget'ı (Native Taskbar Widget):** Saatin ve sistem tepsisinin hemen soluna yerleşir; bağlı her kablosuz cihaz için cihaz türü simgesini ve pil yüzdesini (veya pil çubuğunu) canlı olarak gösterir. Çoklu monitör (ikincil görev çubuğu) ve dikey görev çubuklarıyla tam uyumludur.
+- **Modern Windows 11 Flyout Paneli:** Tepsi ikonuna veya görev çubuğu widget'ına **sol tıkladığınızda** açılan yuvarlatılmış köşeli, koyu/açık tema duyarlı kontrol paneli:
+  - Her cihaz için büyük pil yüzdesi, renkli ilerleme çubuğu, bağlantı türü (`2.4 GHz alıcı`, `Bluetooth`, `USB kablo`, `Omni Alıcı`), voltaj (`mV`) ve AirPods / Galaxy Buds için `Sol / Sağ / Kutu` pil dağılımı.
+  - **Deşarj Hızı ve Kalan Süre Tahmini (ETA):** `~14 sa 20 dk kaldı (-3.2%/sa)` veya `~40 dk sonra tam dolu` hesaplaması ve **mini pil geçmişi grafiği (sparkline)**.
+  - **Uygulama İçi Ayarlar Paneli (`⚙`):** Güncelleme sıklığı (`5–60 sn`), düşük pil uyarı eşiği (`%10–%30`), bildirim tercihleri, Windows başlangıcında çalıştırma ve dil seçimi (`Türkçe` / `English` + 12 dil).
+  - **Hızlı Görev Çubuğu Gizleme (`👁`):** Kart üzerindeki göz simgesiyle cihazı görev çubuğunda tek tıkla gizleyip gösterme.
+- **Sıfır Arka Plan Bloatware:** Razer Synapse, Logitech G HUB, Armoury Crate, iCUE, NGENUITY veya ATK HUB kurmanıza gerek kalmadan **70+ üretici protokolünü** doğrudan saf C++17 ve Win32 HID / BLE / RFCOMM / Serial üzerinden okur.
+- **%100 Çevrimdışı ve Gizlilik Odaklı:** Hiçbir ağ bağlantısı, telemetri veya arka plan servisi içermez; cihazlara yalnızca salt-okunur pil sorguları gönderir.
+
+---
+
+## 🎮 Desteklenen Cihazlar ve Sürücüler (Supported Devices — v1.0.8)
+
+| Kategori | Marka / Sürücü Modülü | Desteklenen Modeller ve Bağlantı Türleri |
 |---|---|---|
-| **ATK Kulaklıklar** | **ATK N9 Ultra** *(Yeni)*, ATK N9 Pro | USB CDC Sanal Seri Port protokolü (2.4 GHz alıcı & USB kablo) |
-| **ASUS ROG** | **ROG Harpe Ace Aim Lab Edition** *(Akıllı öncelik düzeltmeli)*, Harpe Ace Extreme/Mini, Azoth, Falchion, Keris, Gladius, Chakram, Spatha, Pugio, Strix Impact, ROG Omni Alıcı | ROG HID doğrudan pil sorgusu ve çoklu bağlantı birleştirme |
-| **Logitech** | Lightspeed, Unifying, Bolt ve Nano alıcılı fare ve klavyeler; G serisi kulaklıklar (G533, G535, G733, G PRO/PRO X vb.) | HID++ 1.0 / 2.0 protokolü |
-| **Razer** | Kablosuz fareler, klavyeler ve dongle'lar; BlackShark V3 / V3 Pro kulaklıklar | Razer feature-report & headset envelope protokolü |
-| **SteelSeries** | Arctis 1/7/9/Pro/Nova serisi; Aerox 3/5/9, Prime, Rival serisi | Vendor HID raporları |
-| **Corsair** | Void / HS70 / HS80 serisi; Virtuoso, Slipstream fare ve klavyeler | Vendor HID ve Bragi GET protokolü |
-| **Cooler Master** | MM712, MM731 (2.4 GHz alıcı veya USB kablo) | Vendor HID durum raporu |
-| **HyperX** | Cloud III Wireless, Cloud II Wireless, Cloud Alpha Wireless, Flight serisi | Vendor HID raporları |
-| **Glorious & Hitscan** | Model O / D / O 2 / D 2 PRO; Hitscan Hyperlight | Vendor feature report |
-| **Kysona / Pulsar / VXE** | Kysona M600, Pulsar fareler, ATK/VXE fareler (F1 serisi vb.) | Ortak vendor protokolü |
-| **Keychron** | M4 ve 2.4 GHz Keychron fareler, 8K TurboLink alıcılar | Keychron Launcher rapor formatı |
-| **LAMZU** | Maya X, Maya, Atlantis Mini, Thorn, Paro vb. | LAMZU Aurora protokolü |
-| **Rapoo VT** | VT3 Max Gen 2, Nordic 54L VT fareler | Pasif HID durum raporları |
-| **Rongyuan / Attack Shark** | Attack Shark R3, X6, X11, Ajazz klavyeler vb. | Rongyuan alıcı durum raporları |
-| **Sony** | DualShock 4, DualSense, DualSense Edge; INZONE H9 II ve H5 | Direct Input & INZONE vendor protokolü |
-| **GameSir & Xbox** | GameSir Nova Lite / Nova 2; Xbox One / Series kolları | Windows.Gaming.Input & XInput |
-| **Bluetooth & Standart HID** | Windows Bluetooth ayarlarında pil gösteren tüm cihazlar; Standart HID batarya raporu sunan cihazlar | Windows Device API & HID Battery Usage |
-| **HeadsetControl** | HeadsetControl tarafından desteklenen tüm kulaklıklar | Harici `headsetcontrol.exe` desteği |
+| **Fareler (Mice)** | **Razer** (`razer.cpp`) | Viper Ultimate / V2 Pro / V3 Pro / V3 HyperSpeed, DeathAdder V2 Pro / V3 Pro / V3 HyperSpeed, Basilisk Ultimate / V3 Pro, Naga Pro / V2 Pro, Cobra Pro, Orochi V2 |
+| | **Logitech** (`logitech.cpp`) | G PRO X Superlight 1 & 2 / DEX, G502 X Lightspeed / Plus, G502 / G703 / G903 / G305 / G303 Shroud, MX Master / MX Anywhere / Lift / Pebble (Lightspeed, Bolt, Unifying, Bluetooth) |
+| | **ASUS ROG** (`rog.cpp`) | Harpe Ace Aim Lab / Extreme / Mini / II Ace, Keris Wireless / AimPoint / II Ace / II Origin, Gladius II / III Wireless / AimPoint, Chakram / Chakram X, Spatha X, Strix Impact II / III Wireless, Omni Receiver |
+| | **SteelSeries** (`steelseries.cpp`) | Aerox 3 / 5 / 9 Wireless, Rival 3 / 650 Wireless, Prime / Prime Mini Wireless |
+| | **Corsair** (`corsair.cpp`) | Dark Core RGB Pro, Ironclaw RGB Wireless, Harpoon RGB Wireless, Katar Pro Wireless, M75 Air / Wireless, Sabre RGB Pro Wireless |
+| | **HyperX** (`hyperx.cpp`) | Pulsefire Haste Wireless, Pulsefire Haste 2 Wireless, Pulsefire Haste 2 Core Wireless, Pulsefire Dart |
+| | **Pulsar** (`pulsar.cpp`) | X2 / X2V2 / X2V3 / X2H / X2A, Xlite V2 / V3 / V4, Feinmann F01 (`1K/4K/8K` dongle + kablo) |
+| | **Lamzu** (`lamzu.cpp`) | Atlantis OG / Mini / 4K, Maya / Maya X, Thorn, Paro |
+| | **ATK / VXE / VGN** (`kysona.cpp`, `atk_bitmouse.cpp`, `atk_nordic54.cpp`) | VXE Dragonfly R1 / Mad R, VGN Dragonfly F1, ATK Blazing Sky F1 / X1 / Z1 (V1 & V2 Nordic 54L15 64-bayt HID), ATK Zero, ATK A9 / U2 |
+| | **MCHOSE** (`mchose.cpp`, `mchose_modern.cpp`, `mchose_g3.cpp`) | A5 / A7 / L7 / M7 / K7 V2 Ultra+ / AX5, G3 / G3 V2 / G3 Ultra |
+| | **Kysona / Attack Shark / Ajazz** (`kysona.cpp`, `misc_mice.cpp`) | Kysona M600 / Aztec / Uranus, Attack Shark X3 / X6 / R1, Ajazz AJ139 / AJ159 / AJ179 / AJ199, Delux M800 / M900 Pro, Zaopin Z1 / Z2, Incott, RAWM |
+| | **WLmouse & Finalmouse** (`wlmouse.cpp`, `finalmouse.cpp`) | Beast X / Beast X Mini / Beast X Max / Sword X, UltralightX (ULX) / Starlight X |
+| | **ZOWIE & VAXEE** (`zowie.cpp`, `vaxee.cpp`) | ZOWIE EC1/EC2/EC3-CW, U2, U2-DW / FK2-DW / ZA13-DW / S2-DW; VAXEE XE / NP-01S V2 / Outset AX / E1 Wireless |
+| | **Endgame Gear, Ninjutso, Sprime, Darmoshark, Fantech, Dareu, Rapoo** | XM2we / OP1we / XM2w 4k / OP1w 4k (`endgame*.cpp`), Sora V2 / Ten / Ten Air (`ninjutso.cpp`), PM1 (`sprime.cpp`), M3 / N3 (`darmoshark.cpp`), Helios Go XD5 / II Pro (`fantech.cpp`), EM901X / A950 Pro (`dareu.cpp`), VT0 / VT1 / VT2 / VT3 / VT7 / VT9 (`rapoo.cpp`) |
+| | **Diğer Fareler** | Glorious Model O / D / I (1 & 2) & Hitscan (`glorious.cpp`), Cooler Master MM712 (`coolermaster.cpp`), Arbiter Studio Akitsu (`arbiter.cpp`), CHERRY (`cherry.cpp`), MSI VERSA 300 / CLUTCH (`msi.cpp`), NZXT Lift Elite (`nzxt.cpp`), Machenike L7 (`machenike.cpp`), Niceboy MW400 (`niceboy.cpp`), Redragon (`areson.cpp`), Royal Kludge MG6 Pro (`royal_kludge.cpp`), ARDOR Fury V2 |
+| **Klavyeler (Keyboards)** | **AULA & Epomaker** (`aula.cpp`, `rongyuan.cpp`, `sonix.cpp`) | AULA F75, F87 / F87 Pro, F99, F108 Pro, HERO 68 Air, S99, F65 (2.4 GHz & Bluetooth) |
+| | **Keychron & Lemokey** (`keychron.cpp`) | K Pro / K Max, Q Pro / Q Max, V Max, B1/B6 Pro, Lemokey P1 / L1, Nape Pro (2.4 GHz Link & Bluetooth) |
+| | **ATK, ASUS ROG, AJAZZ, CHERRY** (`atk_keyboard.cpp`, `rog.cpp`, `sonix.cpp`, `semico.cpp`, `cherry.cpp`) | ATK V75X / RS7 / Z65, ASUS ROG Azoth / Azoth Extreme / Falchion RX / Strix Scope II 96, AJAZZ AK820 MAX / AK980 V2, Attack Shark X98 / K86, CHERRY MX 3.0S Wireless |
+| **Kulaklıklar & TWS (Headsets & Earbuds)** | **Apple AirPods & Beats** (`airpods.cpp`) | AirPods 1–4, AirPods Pro 1–3, AirPods Max (Lightning & USB-C), Beats Solo / Studio / Powerbeats / Fit Pro (`Sol / Sağ / Kutu` pil yüzdeleriyle) |
+| | **Samsung Galaxy Buds** (`galaxy_buds.cpp`) | Galaxy Buds, Buds+, Buds Live, Buds Pro, Buds2, Buds2 Pro, Buds FE, Buds3, Buds3 Pro (`Sol / Sağ / Kutu` pil yüzdeleriyle) |
+| | **HyperX** (`hyperx.cpp`) | Cloud III Wireless, **Cloud III S Wireless (`03F0:06BE`, `03F0:02CC`)**, Cloud Alpha / Alpha 2 Wireless, Cloud II / II Core Wireless, Cloud Flight, Cloud Stinger Core Wireless, Cloud Core Wireless (DTS) |
+| | **ATK Neptune** (`atk_serial.cpp`) | ATK Neptune N9 Ultra, ATK Neptune N9 Pro (2.4 GHz Dongle & USB Kablo, akıllı COM port önbellekleme ile) |
+| | **Razer** (`razer_headset.cpp`, `barracuda_pro.cpp`) | BlackShark V2 Pro (2020 & 2023) / V2 HyperSpeed / V3 Pro, Kraken V3 Pro / HyperSense / V4 / V4 Pro, Barracuda / Barracuda X / Barracuda Pro |
+| | **Logitech & ASTRO** (`logitech.cpp`, `logitech_g435_0adf.cpp`, `astro.cpp`) | G PRO X / X 2 Lightspeed, G733, G535, **G435 (`046D:0ADF`)**, Zone Vibe / Wireless, ASTRO A30 / A50 Gen 4 / A50 X / Gen 5 |
+| | **SteelSeries** (`steelseries.cpp`, `steelseries_elite.cpp`) | Arctis 1 / 7 / 7+ / 7P / 7X / 9 / Pro Wireless, Arctis Nova 4 / 5 / 7 / Pro Wireless / **Nova Elite** |
+| | **ASUS ROG, Sony, Audeze, Corsair, JBL, Jabra, Poly** | ROG Pelta & ROG Delta II (`rog.cpp`), Sony INZONE H5 / H7 / H9 / H9 II / Buds (`sony_inzone.cpp`), Audeze Maxwell (`audeze.cpp`), Corsair Virtuoso / Void / HS80 (`corsair.cpp`), JBL Quantum (`jbl.cpp`), Jabra Evolve / Engage (`jabra.cpp`), Plantronics / Poly BT600 (`plantronics.cpp`), Fractal Scape (`fractal.cpp`), Alienware AW920H (`alienware.cpp`), MCHOSE V9 Pro 2 (`mchose_headset.cpp`), Maono PD200W (`maono.cpp`), Moondrop GM01 Pro (`moondrop.cpp`) |
+| **Oyun Kolları & Telefon (Gamepads & Phone)** | **Xbox, PlayStation, Switch, Steam, 8BitDo, Flydigi, GameSir** | Xbox One / Series / Elite (`xinput.cpp` WinRT mWh + XInput), DualSense / DualSense Edge / DualShock 4 (`playstation.cpp`), Switch Pro / Joy-Con (`switch_pro.cpp`), Steam Controller (`steam_controller.cpp`), 8BitDo Ultimate 2 / 3-mode / 2C / Pro 2 / Pro 3 (`eightbitdo.cpp`), Flydigi Vader 5 Pro (`flydigi.cpp`), GameSir Nova / Cyclone 2 (`gamesir.cpp`), Beitong KP20 (`beitong.cpp`) |
+| | **Microsoft Phone Link** (`phonelink.cpp`) | Windows 11 Telefon Bağlantısı (Phone Link) ile eşleştirilmiş Android / iPhone telefonlar |
 
 ---
 
-## Kurulum / Installation
+## 🚀 Kurulum ve Kullanım (Installation & Usage)
 
-### Yöntem 1: Hazır Kurulum Dosyası (Setup)
-1. `installer\build-installer.ps1` ile oluşturulan `WirelessBattery-Setup-1.0.0.exe` dosyasını çalıştırın.
-2. Kurulum otomatik olarak uygulamayı `%LOCALAPPDATA%\Programs\Wireless Battery` dizinine yerleştirir, Başlat Menüsü kısayolunu oluşturur ve Windows başlangıcına ekler.
+### 1. Hazır Kurulum Sihirbazı veya Taşınabilir (Portable) Sürüm
+1. [**Releases**](https://github.com/emincodesM/Wireless-Device-Battery-Monitor-TURKCE-BYE-EminCodes/releases) sayfasından `WirelessBattery-Setup-1.0.8.exe` (Türkçe Kurulum Sihirbazı) veya `WirelessBattery-1.0.8-portable.zip` dosyasını indirin.
+2. Uygulama çalıştığında görev çubuğunun sağ alt köşesinde bağlı cihazlarınızın pil yüzdeleri belirecektir.
+3. **Sol Tık:** Modern Windows 11 Flyout pil panelini ve etkileşimli ayarlar görünümünü (`⚙`) açar.
+4. **Sağ Tık:** Hızlı bağlam menüsünü açar.
 
-### Yöntem 2: Taşınabilir (Portable) Sürüm
-`WirelessBattery.exe` dosyasını dilediğiniz bir klasöre kopyalayıp doğrudan çalıştırabilirsiniz.
-
----
-
-## Derleme / Building from Source
-
-Projeyi derlemek için **MinGW-w64** (g++ ve windres) gereklidir.
-
-```cmd
-# Windows CMD ile doğrudan derleme:
-build.bat
-
-# Veya MSYS2 / Make kullanarak:
-make
-```
-
-### Kurulum Paketini Derleme (Installer):
+### 2. Komut Satırı Seçenekleri (CLI Flags)
 ```powershell
-powershell -ExecutionPolicy Bypass -File installer\build-installer.ps1
-```
-Bu komut `dist\WirelessBattery-Setup-1.0.0.exe` ve `dist\WirelessBattery-1.0.0-portable.zip` paketlerini üretir.
-
----
-
-## Komut Satırı Seçenekleri / Command Line
-
-```cmd
-WirelessBattery.exe --list   # Algılanan cihazları ve pil yüzdelerini konsola yazdırır ve çıkar
-WirelessBattery.exe --dump   # Sistemdeki tüm HID koleksiyonlarını listeler
-WirelessBattery.exe --quit   # Arka planda çalışan uygulamayı kapatır
+.\WirelessBattery.exe --list      # Algılanan cihazları ve pil yüzdelerini listeler
+.\WirelessBattery.exe --dump      # Tüm HID/COM/Bluetooth tanılama raporunu oluşturur
+.\WirelessBattery.exe --debug     # %LOCALAPPDATA%\WirelessBattery\debug.log dosyasına tanı kaydı yazar
+.\WirelessBattery.exe --version   # Sürüm bilgisini yazdırır
+.\WirelessBattery.exe --help      # Yardım metnini gösterir
 ```
 
 ---
 
-## Katkıda Bulunanlar & Krediler / Credits
+## 🛠️ Kaynak Koddan Derleme (Building from Source)
 
-Bu proje [krisgfx9/Wireless-Device-Battery-Monitor](https://github.com/krisgfx9/Wireless-Device-Battery-Monitor) projesinin geliştirilmiş ve zenginleştirilmiş özel sürümüdür.
+Proje **MinGW-w64 (`g++` ve `windres`)** ile hiçbir harici kütüphane indirmeye gerek kalmadan derlenir:
 
-Cihaz protokolleri ve araştırmalar:
-- [HeadsetControl](https://github.com/Sapd/HeadsetControl)
-- [OpenRazer](https://github.com/openrazer/openrazer)
-- [Solaar](https://github.com/pwr-Solaar/Solaar)
-- [G-Helper](https://github.com/seerge/g-helper) & [peripheral-battery-tray](https://github.com/SteveWang92/peripheral-battery-tray)
-- [hid-kysona](https://github.com/lodewillems)
-- ATK HUB & Beibinghe Technology protokol analizleri
+```powershell
+# MSYS2 MINGW64 / UCRT64 veya WinLibs ile:
+make
 
-## Lisans / License
+# Veya doğrudan Windows Komut İstemi / PowerShell üzerinden:
+.\build.bat
 
-[GNU General Public License v3.0 or later](LICENSE).
+# Birim testlerini çalıştırmak için:
+make test
+
+# Yerli Türkçe Kurulum Sihirbazını (Setup.exe) ve Portable ZIP paketini oluşturmak için:
+powershell -ExecutionPolicy Bypass -File .\installer\build-installer.ps1
+```
+
+Daha fazla teknik bilgi için:
+- [Mimari Genel Bakış (`docs/ARCHITECTURE.md`)](docs/ARCHITECTURE.md)
+- [Yeni Sürücü Ekleme Rehberi (`docs/ADDING_A_DRIVER.md`)](docs/ADDING_A_DRIVER.md)
+- [Katkıda Bulunma Rehberi (`CONTRIBUTING.md`)](CONTRIBUTING.md)
+- [Değişiklik Günlüğü (`CHANGELOG.md`)](CHANGELOG.md)
+
+---
+
+## 📄 Lisans ve Teşekkür (License & Acknowledgements)
+
+Bu proje [GNU General Public License v3.0 (GPL-3.0)](LICENSE) kapsamında lisanslanmıştır.  
+Orijinal çekirdek sürücü mimarisi [krisgfx9/Wireless-Device-Battery-Monitor](https://github.com/krisgfx9/Wireless-Device-Battery-Monitor) projesine dayanmakta olup, bu sürümde Modern Windows 11 Flyout arayüzü, Türkçe yerelleştirme, deşarj hızı/süre tahmini (ETA), uygulama içi ayarlar paneli ve genişletilmiş donanım yamaları ile geliştirilmiştir.

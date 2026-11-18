@@ -3,10 +3,21 @@
 // (other EC-CW commands reboot the receiver and unpair the mouse).
 //  * EC-CW series (EC1/EC2/EC3-CW): receiver 8006, cable 8005. Unnumbered 64-byte output report
 //    [A5 03]; reply [mV lo][mV hi][percent]... mV = 0 when the mouse is not linked.
+//    The Enhanced Receiver declares this collection on usage page 00FF instead of FFxx.
 //    From github.com/yleshchuk/zowie-battery.
 //  * DW series (U2-DW, S2-DW ...): receiver 800A. Output report 08 [B4 15] on usage page FF03,
 //    reply input report 09 on usage page FF04: mV = ([1] * 256 + [2]) * 10, [4] == C8.
 //    From github.com/IgnacioBarb/zowie-battery-tray (MIT).
+//  * U2: receiver 8008 (product string "BenQ ZOWIE Gaming Mouse"), same FF03 / FF04 layout and
+//    commands as the DW series.
+// On the charging dock the mouse charges over contacts, so nothing new shows up on USB; over radio
+// only the voltage arrives. Charging is therefore inferred from how the voltage moves (same rules
+// as zowie-battery-tray): a rise of 50 mV above the lowest reading means it went on the dock, a
+// drop of 20 mV below the highest means it came off. The receiver only passes on a new voltage
+// when the mouse sends one, so readings change in steps.
+#include <algorithm>
+#include <map>
+
 #include "drivers.h"
 
 namespace {
@@ -18,8 +29,32 @@ int ZowiePercent(int mv) {
     return Interpolate(mv, v, p, 6);
 }
 
+// Charging guess from the voltage trend of one receiver. Only touched by the polling thread.
+struct ChargeTrend {
+    bool has = false, charging = false;
+    int peak = 0, trough = 0;
+
+    bool Update(int mv) {
+        if (!has) {
+            has = true;
+            charging = mv >= 4250;  // a resting Li-ion cell never sits above ~4.2 V
+            peak = trough = mv;
+        } else if (charging) {
+            peak = std::max(peak, mv);
+            if (mv <= peak - 20) { charging = false; trough = mv; }
+        } else {
+            trough = std::min(trough, mv);
+            if (mv >= trough + 50) { charging = true; peak = mv; }
+        }
+        return charging;
+    }
+};
+std::map<USHORT, ChargeTrend> g_trend;
+
 bool PollCw(PollContext& ctx, USHORT pid) {
-    for (const HidColl* c : ctx.Find(0x04A5, pid, [](const HidColl& c) { return c.page() >= 0xFF00 && c.outLen() == 65; })) {
+    for (const HidColl* c : ctx.Find(0x04A5, pid, [](const HidColl& c) {
+             return (c.page() >= 0xFF00 || c.page() == 0x00FF) && c.outLen() == 65;
+         })) {
         HidDev d;
         if (!d.Open(*c)) continue;
         d.Flush();
@@ -64,11 +99,12 @@ bool PollDw(PollContext& ctx, USHORT pid) {
     }
     if (!ok || r[1] == 0xE6 || r[4] != 0xC8) return false;
     int mv = (r[1] * 256 + r[2]) * 10;
-    bool cable = pid != 0x800A;
+    bool cable = pid != 0x800A && pid != 0x8008;  // 800A: DW receiver, 8008: U2 receiver
     DeviceStatus s;
     s.key = L"zowie:" + Hex4(pid);
     s.name = HidProduct(*cmd[0]);
-    if (s.name.empty() || s.name.find(L"Receiver") != std::wstring::npos) s.name = L"ZOWIE DW mouse";
+    if (pid == 0x8008) s.name = L"ZOWIE U2";  // its receiver only reports "BenQ ZOWIE Gaming Mouse"
+    else if (s.name.empty() || s.name.find(L"Receiver") != std::wstring::npos) s.name = L"ZOWIE DW mouse";
     s.kind = DeviceKind::Mouse;
     s.via = cable ? L"USB cable" : L"2.4 GHz receiver";
     if (mv == 0) {
@@ -76,7 +112,7 @@ bool PollDw(PollContext& ctx, USHORT pid) {
     } else {
         s.millivolts = mv;
         s.percent = ZowiePercent(mv);
-        s.charging = cable || mv >= 4250;
+        s.charging = cable || g_trend[pid].Update(mv);
     }
     ctx.Add(s, 0x04A5, pid);
     return true;

@@ -1,30 +1,38 @@
 #pragma once
-// A small transparent strip on the taskbar, just left of the notification area, showing
-// "[icon] 30%  [icon] 93%". Implemented as a layered child window of the taskbar (Shell_TrayWnd).
 #include <windows.h>
-#include <string>
 #include <vector>
+#include "brands.h"
 #include "devices.h"
 
-struct WidgetItem {
-    DeviceKind kind = DeviceKind::Other;
-    int  percent  = -1;     // -1 = unknown
-    std::wstring text;      // shown instead of the percentage when set (coarse levels like "Low")
-    bool charging = false;
-    bool dim      = false;  // asleep / stale value
-    bool low      = false;
-    bool bluetooth = false;  // picks the Bluetooth icon when the device type is unknown
+namespace widget {
+
+struct Entry {
+    DeviceStatus status;
+    Accent accent = Accent::None;
+    std::wstring shortLabel;
 };
 
-namespace widget {
-// Creates the widget on the primary taskbar. Clicks are reported by posting `clickMsg` to `notifyWnd`.
-bool Create(HINSTANCE inst, HWND notifyWnd, UINT clickMsg, bool lightTheme);
+void Create(HINSTANCE hInst, HWND ownerWnd, UINT clickMsg);
 void Destroy();
-bool Alive();
-void SetItems(const std::vector<WidgetItem>& items, const std::wstring& tooltip);
-void SetLightTheme(bool light);
-// Re-checks the taskbar layout and moves the widget if needed; call about once a second.
-// Returns false when the taskbar it was attached to is gone.
-bool Reposition();
+void Update(const std::vector<Entry>& devices);
+
+// Returns the screen rectangle of the primary taskbar widget (used to anchor the Flyout).
 bool GetScreenRect(RECT& out);
-}
+
+// Taskbar & tray appearance options (saved under HKCU\Software\WirelessBattery).
+bool ShowNumbers();
+void SetShowNumbers(bool on);
+bool ColorPct();
+void SetColorPct(bool on);
+bool ShortNames();
+void SetShortNames(bool on);
+bool ShowOff();
+void SetShowOff(bool on);
+bool TrayBars();
+void SetTrayBars(bool on);
+
+// Per-device colour override: -1 = automatic (from brand), 0 = none, >0 = Accent enum value.
+int  AccentPref(const std::wstring& key);
+void SetAccentPref(const std::wstring& key, int pref);
+
+}  // namespace widget

@@ -1,6 +1,7 @@
 // Optional bridge to HeadsetControl (github.com/Sapd/HeadsetControl), which supports many more
-// headsets than the built-in drivers. If headsetcontrol.exe sits next to WirelessBattery.exe or is
-// on PATH, it is run with `-o json` and any headset not already handled here is added.
+// headsets than the built-in drivers. By default, only headsetcontrol.exe sitting next to
+// WirelessBattery.exe (or in third_party\headsetcontrol\) is run; PATH lookup is disabled unless
+// HKCU\Software\WirelessBattery\HeadsetControlFromPath = 1.
 #include "drivers.h"
 
 #include <cstdlib>
@@ -107,32 +108,76 @@ std::wstring Widen(const std::string& s) {
     return w;
 }
 
+std::wstring SelfDir() {
+    std::wstring buf(MAX_PATH, L'\0');
+    for (;;) {
+        DWORD n = GetModuleFileNameW(nullptr, buf.data(), (DWORD)buf.size());
+        if (n == 0) return L"";
+        if (n < buf.size() - 1) {
+            buf.resize(n);
+            break;
+        }
+        if (buf.size() >= 32768) return L"";
+        buf.resize(buf.size() * 2);
+    }
+    size_t slash = buf.find_last_of(L"\\/");
+    return slash == std::wstring::npos ? L"" : buf.substr(0, slash + 1);
+}
+
+bool AllowFromPath() {
+    HKEY k = nullptr;
+    if (RegOpenKeyExW(HKEY_CURRENT_USER, L"Software\\WirelessBattery", 0, KEY_READ, &k) != ERROR_SUCCESS) return false;
+    DWORD val = 0, sz = sizeof(val), type = 0;
+    bool ok = RegQueryValueExW(k, L"HeadsetControlFromPath", nullptr, &type, (BYTE*)&val, &sz) == ERROR_SUCCESS &&
+              type == REG_DWORD && val != 0;
+    RegCloseKey(k);
+    return ok;
+}
+
 std::wstring FindExe() {
-    wchar_t self[MAX_PATH];
-    GetModuleFileNameW(nullptr, self, MAX_PATH);
-    std::wstring dir = self;
-    dir = dir.substr(0, dir.find_last_of(L"\\/") + 1);
-    std::wstring local = dir + L"headsetcontrol.exe";
-    if (GetFileAttributesW(local.c_str()) != INVALID_FILE_ATTRIBUTES) return local;
-    wchar_t found[MAX_PATH];
-    if (SearchPathW(nullptr, L"headsetcontrol.exe", nullptr, MAX_PATH, found, nullptr)) return found;
+    std::wstring dir = SelfDir();
+    if (!dir.empty()) {
+        std::wstring local = dir + L"headsetcontrol.exe";
+        if (GetFileAttributesW(local.c_str()) != INVALID_FILE_ATTRIBUTES) return local;
+        std::wstring bundled = dir + L"third_party\\headsetcontrol\\headsetcontrol.exe";
+        if (GetFileAttributesW(bundled.c_str()) != INVALID_FILE_ATTRIBUTES) return bundled;
+    }
+    if (AllowFromPath()) {
+        wchar_t found[MAX_PATH] = {};
+        if (SearchPathW(nullptr, L"headsetcontrol.exe", nullptr, MAX_PATH, found, nullptr)) return found;
+    }
     return L"";
 }
 
-// Runs the command line and returns its stdout (empty on failure or after `timeoutMs`).
-std::string Run(std::wstring cmd, int timeoutMs) {
+// Runs `exe` with `cmd` and returns its stdout (empty on failure or after `timeoutMs`).
+// Restricts handle inheritance strictly to the pipe write handle (`wr`) via PROC_THREAD_ATTRIBUTE_HANDLE_LIST.
+std::string Run(const std::wstring& exe, std::wstring cmd, int timeoutMs) {
     SECURITY_ATTRIBUTES sa{ sizeof(sa), nullptr, TRUE };
-    HANDLE rd, wr;
+    HANDLE rd = nullptr, wr = nullptr;
     if (!CreatePipe(&rd, &wr, &sa, 0)) return "";
     SetHandleInformation(rd, HANDLE_FLAG_INHERIT, 0);
-    STARTUPINFOW si{ sizeof(si) };
-    si.dwFlags = STARTF_USESTDHANDLES;
-    si.hStdOutput = wr;
-    si.hStdError = wr;
-    si.hStdInput = nullptr;
+
+    SIZE_T attrSize = 0;
+    InitializeProcThreadAttributeList(nullptr, 1, 0, &attrSize);
+    std::vector<BYTE> attrBuf(attrSize);
+    auto* attrList = reinterpret_cast<LPPROC_THREAD_ATTRIBUTE_LIST>(attrBuf.data());
+    bool hasAttr = attrSize > 0 && InitializeProcThreadAttributeList(attrList, 1, 0, &attrSize) &&
+                   UpdateProcThreadAttribute(attrList, 0, PROC_THREAD_ATTRIBUTE_HANDLE_LIST, &wr, sizeof(HANDLE), nullptr, nullptr);
+
+    STARTUPINFOEXW si{};
+    si.StartupInfo.cb = hasAttr ? sizeof(si) : sizeof(STARTUPINFOW);
+    si.StartupInfo.dwFlags = STARTF_USESTDHANDLES;
+    si.StartupInfo.hStdOutput = wr;
+    si.StartupInfo.hStdError = wr;
+    si.StartupInfo.hStdInput = nullptr;
+    if (hasAttr) si.lpAttributeList = attrList;
+
     PROCESS_INFORMATION pi{};
-    BOOL ok = CreateProcessW(nullptr, cmd.data(), nullptr, nullptr, TRUE, CREATE_NO_WINDOW, nullptr, nullptr, &si, &pi);
+    DWORD flags = CREATE_NO_WINDOW | (hasAttr ? EXTENDED_STARTUPINFO_PRESENT : 0);
+    BOOL ok = CreateProcessW(exe.c_str(), cmd.data(), nullptr, nullptr, TRUE, flags, nullptr, nullptr, &si.StartupInfo, &pi);
+    if (hasAttr) DeleteProcThreadAttributeList(attrList);
     CloseHandle(wr);
+
     std::string out;
     if (ok) {
         ULONGLONG end = GetTickCount64() + timeoutMs;
@@ -185,7 +230,7 @@ std::vector<HscDevice> Parse(const std::string& text) {
         const Json* name = d.get("device");
         s.name = name && !name->str.empty() ? Widen(name->str) : L"Headset";
         s.kind = DeviceKind::Headset;
-        s.via = L"HeadsetControl";
+        s.via = L"2.4 GHz (HeadsetControl)";
         s.charging = st == "BATTERY_CHARGING";
         s.connected = st == "BATTERY_AVAILABLE" || st == "BATTERY_CHARGING";
         if (s.connected && level && level->type == Json::Num && level->num >= 0) s.percent = Clamp100((int)level->num);
@@ -194,16 +239,18 @@ std::vector<HscDevice> Parse(const std::string& text) {
     return out;
 }
 
-// HeadsetControl can take several seconds per headset, so it runs on its own thread and the regular
-// poll uses its latest result instead of waiting for it. Only the battery is requested (-b), with
-// a short HID timeout so a sleeping headset cannot stall it.
 SRWLOCK g_lock = SRWLOCK_INIT;
 std::vector<HscDevice> g_devices;
 ULONGLONG g_updated = 0;
 LONG g_running = 0;
 
-std::wstring Command() {
+const std::wstring& ExePath() {
     static std::wstring exe = FindExe();
+    return exe;
+}
+
+std::wstring Command() {
+    const std::wstring& exe = ExePath();
     if (exe.empty()) return L"";
     std::wstring cmd = L"\"" + exe + L"\" -b -o json --timeout 1500";
     wchar_t test[8];
@@ -212,8 +259,9 @@ std::wstring Command() {
 }
 
 void Refresh() {
+    const std::wstring& exe = ExePath();
     std::wstring cmd = Command();
-    std::vector<HscDevice> found = cmd.empty() ? std::vector<HscDevice>{} : Parse(Run(cmd, 30000));
+    std::vector<HscDevice> found = (exe.empty() || cmd.empty()) ? std::vector<HscDevice>{} : Parse(Run(exe, cmd, 30000));
     AcquireSRWLockExclusive(&g_lock);
     g_devices = found;
     g_updated = GetTickCount64();

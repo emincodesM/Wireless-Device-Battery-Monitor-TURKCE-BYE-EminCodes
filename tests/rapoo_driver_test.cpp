@@ -35,7 +35,7 @@ bool HidDev::Open(const HidColl& c) {
 }
 void HidDev::Close() { h_ = INVALID_HANDLE_VALUE; }
 int HidDev::Read(std::vector<BYTE>& out, int timeoutMs) {
-    assert(timeoutMs > 0 && timeoutMs <= 4000);
+    assert(timeoutMs > 0 && timeoutMs <= 5000);
     auto& queue = reports[c_.path];
     if (queue.empty()) return -1;
     out = queue.front();
@@ -43,6 +43,8 @@ int HidDev::Read(std::vector<BYTE>& out, int timeoutMs) {
     return (int)out.size();
 }
 std::wstring HidProduct(const HidColl&) { return L"Rapoo Gaming Device"; }
+Link InferLink(const std::wstring&) { return Link::Unknown; }
+Level InferLevel(const std::wstring&) { return Level::None; }
 std::wstring Hex4(USHORT v) {
     wchar_t text[8];
     swprintf(text, 8, L"%04X", v);

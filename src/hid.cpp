@@ -1,11 +1,18 @@
+// The Windows HID backend.
+#ifdef _WIN32
+
 #include "hid.h"
 
 #include <setupapi.h>
+#include <hidclass.h>
 
 #include <algorithm>
 #include <cstdio>
 #include <cstring>
 #include <cwctype>
+
+extern "C" BOOLEAN __stdcall HidD_SetOutputReport(HANDLE, PVOID, ULONG);
+extern "C" BOOLEAN __stdcall HidD_GetInputReport(HANDLE, PVOID, ULONG);
 
 std::vector<HidColl> EnumHid() {
     std::vector<HidColl> out;
@@ -48,6 +55,14 @@ bool HidDev::Open(const HidColl& c) {
     c_ = c;
     h_ = CreateFileW(c.path.c_str(), GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr, OPEN_EXISTING,
                      FILE_FLAG_OVERLAPPED, nullptr);
+    overlapped_ = true;
+    return ok();
+}
+
+bool HidDev::OpenReadOnly(const HidColl& c) {
+    Close();
+    c_ = c;
+    h_ = CreateFileW(c.path.c_str(), GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr, OPEN_EXISTING, FILE_FLAG_OVERLAPPED, nullptr);
     overlapped_ = true;
     return ok();
 }
@@ -97,12 +112,37 @@ int HidDev::Read(std::vector<BYTE>& buf, int timeoutMs) {
             done = GetOverlappedResult(h_, &ov, &got, FALSE) != FALSE;
         } else {
             CancelIo(h_);
-            done = GetOverlappedResult(h_, &ov, &got, TRUE) != FALSE;  // it may have completed meanwhile
+            done = GetOverlappedResult(h_, &ov, &got, TRUE) != FALSE;
         }
     }
     CloseHandle(ov.hEvent);
     if (!done || got == 0) return -1;
     size_t off = tmp[0] == 0 ? 1 : 0;  // hidapi semantics: drop the "no report ID" byte
+    buf.assign(tmp.begin() + off, tmp.begin() + got);
+    return (int)buf.size();
+}
+
+int HidDev::SetOutputAndRead(const std::vector<BYTE>& data, std::vector<BYTE>& buf, int timeoutMs) {
+    if (!ok() || !overlapped_ || !c_.inLen() || !c_.outLen() || data.empty()) return -1;
+    std::vector<BYTE> out(c_.outLen(), 0);
+    memcpy(out.data(), data.data(), std::min(out.size(), data.size()));
+    std::vector<BYTE> tmp(c_.inLen(), 0);
+    OVERLAPPED ov{};
+    ov.hEvent = CreateEventW(nullptr, TRUE, FALSE, nullptr);
+    DWORD got = 0;
+    bool done = false;
+    if (ReadFile(h_, tmp.data(), (DWORD)tmp.size(), nullptr, &ov) || GetLastError() == ERROR_IO_PENDING) {
+        bool sent = HidD_SetOutputReport(h_, out.data(), (ULONG)out.size()) != FALSE;
+        if (sent && timeoutMs > 0 && WaitForSingleObject(ov.hEvent, (DWORD)timeoutMs) == WAIT_OBJECT_0) {
+            done = GetOverlappedResult(h_, &ov, &got, FALSE) != FALSE;
+        } else {
+            CancelIo(h_);
+            done = GetOverlappedResult(h_, &ov, &got, TRUE) != FALSE && sent;
+        }
+    }
+    CloseHandle(ov.hEvent);
+    if (!done || got == 0) return -1;
+    size_t off = tmp[0] == 0 ? 1 : 0;
     buf.assign(tmp.begin() + off, tmp.begin() + got);
     return (int)buf.size();
 }
@@ -125,9 +165,36 @@ bool HidDev::GetFeature(BYTE reportId, std::vector<BYTE>& out) {
     return HidD_GetFeature(h_, out.data(), (ULONG)out.size()) != FALSE;
 }
 
+bool HidDev::GetInputReport(BYTE reportId, std::vector<BYTE>& out) {
+    if (!ok() || !c_.inLen()) return false;
+    out.assign(c_.inLen(), 0);
+    out[0] = reportId;
+    return HidD_GetInputReport(h_, out.data(), (ULONG)out.size()) != FALSE;
+}
+
+bool HidDev::GetFeatureByte(BYTE reportId, BYTE& value) {
+    if (!ok() || !overlapped_ || !reportId || c_.featLen() < 2) return false;
+    BYTE report[] = { reportId, 0xff };
+    OVERLAPPED ov{};
+    ov.hEvent = CreateEventW(nullptr, TRUE, FALSE, nullptr);
+    if (!ov.hEvent) return false;
+    DWORD received = 0;
+    BOOL done = DeviceIoControl(h_, IOCTL_HID_GET_FEATURE, report, sizeof(report),
+                                report, sizeof(report), &received, &ov);
+    if (!done && GetLastError() == ERROR_IO_PENDING) {
+        if (WaitForSingleObject(ov.hEvent, 200) != WAIT_OBJECT_0) CancelIoEx(h_, &ov);
+        done = GetOverlappedResult(h_, &ov, &received, TRUE);
+    }
+    CloseHandle(ov.hEvent);
+    if (!done || received != sizeof(report) || report[0] != reportId) return false;
+    value = report[1];
+    return true;
+}
+
 // ---- helpers ----------------------------------------------------------------------------------
 
 std::wstring HidProduct(const HidColl& c) {
+    if (!c.product.empty()) return c.product;
     HANDLE h = CreateFileW(c.path.c_str(), 0, FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr, OPEN_EXISTING, 0, nullptr);
     if (h == INVALID_HANDLE_VALUE) return L"";
     wchar_t name[128] = {};
@@ -162,20 +229,6 @@ int Interpolate(int mv, const int* mvTable, const int* pctTable, int n) {
     return pctTable[n - 1];
 }
 
-DeviceKind GuessKind(const std::wstring& name) {
-    std::wstring n = name;
-    for (auto& ch : n) ch = towlower(ch);
-    auto has = [&](const wchar_t* s) { return n.find(s) != std::wstring::npos; };
-    if (has(L"mouse") || has(L"mice") || has(L"trackball")) return DeviceKind::Mouse;
-    if (has(L"keyboard") || has(L"keys")) return DeviceKind::Keyboard;
-    if (has(L"controller") || has(L"gamepad") || has(L"xbox") || has(L"dualsense") || has(L"dualshock") || has(L"joy-con"))
-        return DeviceKind::Gamepad;
-    if (has(L"head") || has(L"buds") || has(L"pods") || has(L"ear") || has(L"wh-") || has(L"wf-") || has(L"audio") ||
-        has(L"speaker") || has(L"arctis") || has(L"cloud") || has(L"void") || has(L"virtuoso"))
-        return DeviceKind::Headset;
-    return DeviceKind::Other;
-}
-
 DeviceKind KindFromCollections(const std::vector<HidColl>& all, USHORT vid, USHORT pid) {
     bool mouse = false, pad = false, kbd = false;
     for (const auto& c : all) {
@@ -189,3 +242,5 @@ DeviceKind KindFromCollections(const std::vector<HidColl>& all, USHORT vid, USHO
     if (kbd) return DeviceKind::Keyboard;
     return DeviceKind::Other;
 }
+
+#endif  // _WIN32
